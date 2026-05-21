@@ -1,10 +1,13 @@
-import { AlertCircle, MessageSquare, Plus } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { ConfigureBanner, isSupabaseConfigured } from "@/components/configure-banner";
 import { getActiveListGrouped } from "@/lib/db/shopping-list";
+import { listIngredients } from "@/lib/db/recipes";
 import type { Locale } from "@/lib/db/recipe-types";
 import { formatQuantity } from "@/lib/units";
 import { errorMessage } from "@/lib/errors";
+import { ListLine } from "./list-line";
+import { QuickAdd } from "./quick-add";
+import { FinishShoppingButton } from "./finish-button";
 
 export default async function ListPage() {
   const t = await getTranslations();
@@ -20,11 +23,15 @@ export default async function ListPage() {
   }
 
   let data: Awaited<ReturnType<typeof getActiveListGrouped>> | null = null;
+  let ingredients: Awaited<ReturnType<typeof listIngredients>> = [];
   let loadError: string | null = null;
   try {
-    data = await getActiveListGrouped(locale);
+    [data, ingredients] = await Promise.all([
+      getActiveListGrouped(locale),
+      listIngredients(),
+    ]);
   } catch (err) {
-    console.error("[list] getActiveListGrouped failed:", err);
+    console.error("[list] load failed:", err);
     loadError = errorMessage(err);
   }
 
@@ -37,92 +44,64 @@ export default async function ListPage() {
 
       {loadError && <ErrorBox message={loadError} />}
 
-      <div className="quick-add">
-        <div className="quick-add-row">
-          <input placeholder="Add an item…" />
-          <div className="qa-mode-toggle">
-            <button type="button" className="active">
-              {t("common.single")}
-            </button>
-            <button type="button">{t("common.bulkPaste")}</button>
-          </div>
-          <button type="button" className="btn btn-primary">
-            <Plus /> {t("common.add")}
-          </button>
-        </div>
-        <div style={{ fontSize: 11, color: "var(--ink-soft)", fontStyle: "italic", marginTop: 8 }}>
-          Quick-add is wired up in the next commit. For now, open a recipe and
-          tap "Add to shopping list" to populate this page.
-        </div>
-      </div>
+      <QuickAdd
+        ingredients={ingredients}
+        locale={locale}
+        singleLabel={t("common.single")}
+        bulkLabel={t("common.bulkPaste")}
+        addLabel={t("common.add")}
+      />
 
       {totalLines === 0 && !loadError ? (
         <EmptyState />
       ) : (
-        <div className="list-main">
-          {allGroups.map((group) => (
-            <div key={group.categoryId} className="list-group">
-              <div className="group-head">
-                <h4 className="serif">
-                  <span className="em">{group.categoryEmoji}</span> {group.categoryName}{" "}
-                  <span className="count">{group.lines.length}</span>
-                </h4>
-              </div>
-              {group.lines.map((line) => {
-                const ing = line.ingredient;
-                const name =
-                  locale === "nl" ? ing.name_nl : locale === "fr" ? ing.name_fr : ing.name_en;
-                const formatted = formatQuantity(line.totalQty, line.unit, { locale });
-                const sourceLabel =
-                  line.sources.length === 0
-                    ? ""
-                    : line.sources.length === 1
-                      ? line.sources[0].kind === "adhoc"
-                        ? "ad-hoc"
-                        : line.sources[0].recipeTitle
-                      : `${line.sources.length} sources`;
-                const isMergedFromMultiple = line.sources.length > 1;
-
-                return (
-                  <div
-                    key={line.key}
-                    className={`list-item${line.isUrgent ? " urgent" : ""}${line.isChecked ? " done" : ""}`}
-                  >
-                    <div className="check" />
-                    <div className="item-icon">{ing.emoji}</div>
-                    <div className="item-main">
-                      <div className="item-row">
-                        <span className="item-name">{name}</span>
-                        {line.isUrgent && (
-                          <span className="urgent-flag">
-                            <AlertCircle /> {t("common.urgent")}
-                          </span>
-                        )}
-                        {sourceLabel && (
-                          <span
-                            className={`item-source${isMergedFromMultiple ? " merged" : ""}`}
-                          >
-                            {sourceLabel}
-                          </span>
-                        )}
-                      </div>
-                      {line.note && (
-                        <div className="note">
-                          <MessageSquare /> {line.note}
-                        </div>
+        <>
+          <div className="list-main">
+            {allGroups.map((group) => (
+              <div key={group.categoryId} className="list-group">
+                <div className="group-head">
+                  <h4 className="serif">
+                    <span className="em">{group.categoryEmoji}</span> {group.categoryName}{" "}
+                    <span className="count">{group.lines.length}</span>
+                  </h4>
+                </div>
+                {group.lines.map((line) => {
+                  const ing = line.ingredient;
+                  const name =
+                    locale === "nl"
+                      ? ing.name_nl
+                      : locale === "fr"
+                        ? ing.name_fr
+                        : ing.name_en;
+                  const formatted = formatQuantity(line.totalQty, line.unit, { locale });
+                  return (
+                    <ListLine
+                      key={line.key}
+                      ingredientId={ing.id}
+                      emoji={ing.emoji}
+                      name={name}
+                      sources={line.sources.map((s) =>
+                        s.kind === "recipe"
+                          ? { kind: "recipe", recipeTitle: s.recipeTitle }
+                          : { kind: "adhoc" },
                       )}
-                    </div>
-                    <div className="qty-cell">
-                      <span className="qty-display serif">
-                        {formatted.qty} <span className="unit">{formatted.unit}</span>
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
+                      qtyDisplay={formatted.qty}
+                      unitDisplay={formatted.unit}
+                      isChecked={line.isChecked}
+                      isUrgent={line.isUrgent}
+                      note={line.note}
+                      urgentLabel={t("common.urgent")}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+            <FinishShoppingButton disabled={totalLines === 0} />
+          </div>
+        </>
       )}
     </>
   );
@@ -172,11 +151,15 @@ function EmptyState() {
         color: "var(--ink-soft)",
       }}
     >
-      <h3 className="serif" style={{ fontWeight: 400, fontSize: 22, margin: 0, color: "var(--ink)" }}>
+      <h3
+        className="serif"
+        style={{ fontWeight: 400, fontSize: 22, margin: 0, color: "var(--ink)" }}
+      >
         Your list is empty
       </h3>
       <p style={{ marginTop: 8, fontSize: 14 }}>
-        Open a recipe and tap <strong>Add to shopping list</strong> to start.
+        Use Quick-add above, or open a recipe and tap{" "}
+        <strong>Add to shopping list</strong>.
       </p>
     </div>
   );
