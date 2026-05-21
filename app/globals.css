@@ -402,6 +402,11 @@ body::before {
   border-color: var(--terracotta);
   box-shadow: 0 0 0 3px var(--terracotta-soft);
 }
+.day.drag-over {
+  border-color: var(--honey);
+  box-shadow: 0 0 0 3px var(--honey-soft);
+  background: rgba(245, 229, 194, 0.4);
+}
 .day-head {
   padding: 10px 12px;
   border-bottom: 1px solid var(--line-soft);

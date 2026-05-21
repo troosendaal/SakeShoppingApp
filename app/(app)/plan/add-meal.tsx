@@ -4,14 +4,12 @@ import { Plus, X } from "lucide-react";
 import { useState, useTransition } from "react";
 import { addMealPlanEntry } from "./actions";
 import type { MealSlot } from "@/lib/db/meal-plan";
+import {
+  RecipePicker,
+  type RecipePickerOption,
+} from "@/components/recipe-picker";
 
-type RecipeOption = {
-  id: string;
-  title: string;
-  hero_emoji: string;
-  base_servings: number;
-  meal_category: string;
-};
+type RecipeOption = RecipePickerOption;
 
 // Map recipe.meal_category → the most natural meal_plan slot. (Recipe
 // categories include dessert/sweets/snack which all default to "snack".)
@@ -166,19 +164,13 @@ export function AddMealButton({
 
             <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 14 }}>
               <FieldLabel>Recipe</FieldLabel>
-              <select
+              <RecipePicker
+                recipes={recipes}
                 value={recipeId}
-                onChange={(e) => pick(e.target.value)}
+                onChange={(id) => pick(id)}
+                placeholder="Search recipes…"
                 required
-                style={selectStyle}
-              >
-                <option value="">— pick a recipe —</option>
-                {recipes.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.hero_emoji} {r.title}
-                  </option>
-                ))}
-              </select>
+              />
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
