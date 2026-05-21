@@ -1,3 +1,4 @@
+import { CheckCircle2 } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { ConfigureBanner, isSupabaseConfigured } from "@/components/configure-banner";
 import { getActiveListGrouped } from "@/lib/db/shopping-list";
@@ -5,7 +6,7 @@ import { listIngredients } from "@/lib/db/recipes";
 import type { Locale } from "@/lib/db/recipe-types";
 import { formatQuantity } from "@/lib/units";
 import { errorMessage } from "@/lib/errors";
-import { ListLine } from "./list-line";
+import { ListLine, RecentItem } from "./list-line";
 import { QuickAdd } from "./quick-add";
 import { FinishShoppingButton } from "./finish-button";
 
@@ -36,7 +37,22 @@ export default async function ListPage() {
   }
 
   const allGroups = data ? [...data.groups, ...(data.otherGroup ? [data.otherGroup] : [])] : [];
+
+  // Split active vs. checked. Active lines stay grouped by category. Checked
+  // lines collapse into a single "Recently bought" section at the bottom,
+  // sorted by most-recently-checked first (we approximate that with the
+  // existing alpha order since checked_at isn't surfaced — good enough for v1).
+  const activeGroups = allGroups
+    .map((g) => ({ ...g, lines: g.lines.filter((l) => !l.isChecked) }))
+    .filter((g) => g.lines.length > 0);
+
+  const recentLines = allGroups.flatMap((g) => g.lines.filter((l) => l.isChecked));
   const totalLines = allGroups.reduce((sum, g) => sum + g.lines.length, 0);
+
+  function nameOf(line: { ingredient: { name_en: string; name_nl: string; name_fr: string } }) {
+    const ing = line.ingredient;
+    return locale === "nl" ? ing.name_nl : locale === "fr" ? ing.name_fr : ing.name_en;
+  }
 
   return (
     <>
@@ -56,47 +72,81 @@ export default async function ListPage() {
         <EmptyState />
       ) : (
         <>
-          <div className="list-main">
-            {allGroups.map((group) => (
-              <div key={group.categoryId} className="list-group">
-                <div className="group-head">
-                  <h4 className="serif">
-                    <span className="em">{group.categoryEmoji}</span> {group.categoryName}{" "}
-                    <span className="count">{group.lines.length}</span>
-                  </h4>
+          {activeGroups.length > 0 ? (
+            <div className="list-main">
+              {activeGroups.map((group) => (
+                <div key={group.categoryId} className="list-group">
+                  <div className="group-head">
+                    <h4 className="serif">
+                      <span className="em">{group.categoryEmoji}</span> {group.categoryName}{" "}
+                      <span className="count">{group.lines.length}</span>
+                    </h4>
+                  </div>
+                  {group.lines.map((line) => {
+                    const formatted = formatQuantity(line.totalQty, line.unit, { locale });
+                    return (
+                      <ListLine
+                        key={line.key}
+                        ingredientId={line.ingredient.id}
+                        emoji={line.ingredient.emoji}
+                        name={nameOf(line)}
+                        sources={line.sources.map((s) =>
+                          s.kind === "recipe"
+                            ? { kind: "recipe", recipeTitle: s.recipeTitle }
+                            : { kind: "adhoc" },
+                        )}
+                        qtyDisplay={formatted.qty}
+                        unitDisplay={formatted.unit}
+                        isChecked={line.isChecked}
+                        isUrgent={line.isUrgent}
+                        note={line.note}
+                        urgentLabel={t("common.urgent")}
+                      />
+                    );
+                  })}
                 </div>
-                {group.lines.map((line) => {
-                  const ing = line.ingredient;
-                  const name =
-                    locale === "nl"
-                      ? ing.name_nl
-                      : locale === "fr"
-                        ? ing.name_fr
-                        : ing.name_en;
-                  const formatted = formatQuantity(line.totalQty, line.unit, { locale });
-                  return (
-                    <ListLine
-                      key={line.key}
-                      ingredientId={ing.id}
-                      emoji={ing.emoji}
-                      name={name}
-                      sources={line.sources.map((s) =>
-                        s.kind === "recipe"
-                          ? { kind: "recipe", recipeTitle: s.recipeTitle }
-                          : { kind: "adhoc" },
-                      )}
-                      qtyDisplay={formatted.qty}
-                      unitDisplay={formatted.unit}
-                      isChecked={line.isChecked}
-                      isUrgent={line.isUrgent}
-                      note={line.note}
-                      urgentLabel={t("common.urgent")}
-                    />
-                  );
-                })}
+              ))}
+            </div>
+          ) : (
+            <div
+              style={{
+                background: "var(--bg-card)",
+                border: "1px dashed var(--line)",
+                borderRadius: 14,
+                padding: 32,
+                textAlign: "center",
+                color: "var(--ink-soft)",
+                fontSize: 14,
+                fontStyle: "italic",
+              }}
+            >
+              All set — every item is checked off below.
+            </div>
+          )}
+
+          {recentLines.length > 0 && (
+            <section className="list-recent">
+              <div className="recent-head">
+                <h4 className="serif">
+                  <CheckCircle2 /> Recently bought
+                </h4>
+                <span className="count">{recentLines.length}</span>
               </div>
-            ))}
-          </div>
+              {recentLines.map((line) => {
+                const formatted = formatQuantity(line.totalQty, line.unit, { locale });
+                return (
+                  <RecentItem
+                    key={line.key}
+                    ingredientId={line.ingredient.id}
+                    emoji={line.ingredient.emoji}
+                    name={nameOf(line)}
+                    qtyDisplay={formatted.qty}
+                    unitDisplay={formatted.unit}
+                  />
+                );
+              })}
+            </section>
+          )}
 
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
             <FinishShoppingButton disabled={totalLines === 0} />

@@ -325,6 +325,50 @@ function MenuItem({
   );
 }
 
+// "Recently bought" companion — compact row for the dark section at the
+// bottom of the list. Click the checkbox to restore the item back to the
+// active list.
+export function RecentItem({
+  ingredientId,
+  emoji,
+  name,
+  qtyDisplay,
+  unitDisplay,
+}: {
+  ingredientId: string;
+  emoji: string;
+  name: string;
+  qtyDisplay: string;
+  unitDisplay: string;
+}) {
+  const [pending, startTransition] = useTransition();
+
+  function restore() {
+    startTransition(async () => {
+      await setLineChecked(ingredientId, false);
+    });
+  }
+
+  return (
+    <div className="recent-item" style={{ opacity: pending ? 0.55 : 1 }}>
+      <button
+        type="button"
+        className="check"
+        onClick={restore}
+        disabled={pending}
+        aria-label="Restore to list"
+      >
+        <Check />
+      </button>
+      <div className="emoji">{emoji}</div>
+      <div className="name">{name}</div>
+      <div className="qty">
+        {qtyDisplay} {unitDisplay}
+      </div>
+    </div>
+  );
+}
+
 function labelFor(sources: LineSource[]): string {
   if (sources.length === 0) return "";
   if (sources.length === 1) {
