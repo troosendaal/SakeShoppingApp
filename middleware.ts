@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { type CookieOptions, createServerClient } from "@supabase/ssr";
 
 // Auth middleware: redirect unauthenticated users to /login, and
 // redirect authenticated users away from /login and /signup.
@@ -16,7 +16,9 @@ export async function middleware(req: NextRequest) {
   const supabase = createServerClient(supabaseUrl, supabaseKey, {
     cookies: {
       getAll: () => req.cookies.getAll(),
-      setAll: (cookiesToSet) => {
+      setAll: (
+        cookiesToSet: Array<{ name: string; value: string; options?: CookieOptions }>,
+      ) => {
         cookiesToSet.forEach(({ name, value, options }) => {
           res.cookies.set(name, value, options);
         });
