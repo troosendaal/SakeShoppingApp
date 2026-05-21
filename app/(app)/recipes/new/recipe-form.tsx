@@ -6,11 +6,11 @@ import { useState, useTransition } from "react";
 import {
   type IngredientLite,
   type Locale,
-  ingredientName,
   MEAL_CATEGORIES,
   UNITS,
 } from "@/lib/db/recipe-types";
 import { unitTypeOf } from "@/lib/units";
+import { IngredientPicker } from "@/components/ingredient-picker";
 import { createRecipe, updateRecipe } from "../actions";
 import { BulkIngredientInput } from "./bulk-ingredient-input";
 
@@ -335,19 +335,14 @@ export function RecipeForm({
                 alignItems: "center",
               }}
             >
-              <select
+              <IngredientPicker
+                ingredients={ingredients}
+                locale={locale}
                 value={row.ingredient_id}
-                onChange={(e) => onIngredientChange(i, e.target.value)}
-                style={inputStyle}
+                onChange={(id) => onIngredientChange(i, id)}
+                placeholder="Search ingredients…"
                 required
-              >
-                <option value="">— pick an ingredient —</option>
-                {ingredients.map((ing) => (
-                  <option key={ing.id} value={ing.id}>
-                    {ing.emoji} {ingredientName(ing, locale)}
-                  </option>
-                ))}
-              </select>
+              />
               <input
                 type="number"
                 step="0.01"
