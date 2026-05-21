@@ -94,13 +94,19 @@ export function ListLine({
     setMenuOpen(false);
     setLocalNote(null);
     setNoteDraft("");
-    startTransition(() => setLineNote(ingredientId, null));
+    // React 19's startTransition callback must return void — discard the
+    // server-action promise explicitly.
+    startTransition(() => {
+      void setLineNote(ingredientId, null);
+    });
   }
   function saveNote() {
     const cleaned = noteDraft.trim() || null;
     setLocalNote(cleaned);
     setEditingNote(false);
-    startTransition(() => setLineNote(ingredientId, cleaned));
+    startTransition(() => {
+      void setLineNote(ingredientId, cleaned);
+    });
   }
   function cancelNote() {
     setEditingNote(false);
