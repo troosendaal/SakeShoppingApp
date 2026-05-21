@@ -188,6 +188,7 @@ export default async function RecipeDetailPage({
           )}
 
           <ServingsStepper
+            recipeId={recipe.id}
             baseServings={recipe.base_servings}
             ingredients={ingredientData}
           />

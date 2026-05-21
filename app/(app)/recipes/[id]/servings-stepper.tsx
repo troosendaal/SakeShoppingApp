@@ -1,7 +1,8 @@
 "use client";
 
-import { Minus, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Check, Minus, Plus, ShoppingBasket } from "lucide-react";
+import { useMemo, useState, useTransition } from "react";
+import { addRecipeToActiveList } from "@/app/(app)/list/actions";
 
 type Ing = {
   id: string;
@@ -13,31 +14,45 @@ type Ing = {
   notes: string | null;
 };
 
-// Format a scaled quantity nicely: integers stay integers, otherwise up to 2 decimals.
 function fmtQty(qty: number): string {
   if (Number.isInteger(qty)) return qty.toString();
-  const rounded = Math.round(qty * 100) / 100;
-  return rounded.toString();
+  return (Math.round(qty * 100) / 100).toString();
 }
 
 export function ServingsStepper({
+  recipeId,
   baseServings,
   ingredients,
 }: {
+  recipeId: string;
   baseServings: number;
   ingredients: Ing[];
 }) {
   const [servings, setServings] = useState(baseServings);
-  const factor = servings / baseServings;
+  const [isPending, startTransition] = useTransition();
+  const [feedback, setFeedback] = useState<"idle" | "added" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const factor = servings / baseServings;
   const scaled = useMemo(
-    () =>
-      ingredients.map((ing) => ({
-        ...ing,
-        scaledQty: ing.quantity * factor,
-      })),
+    () => ingredients.map((ing) => ({ ...ing, scaledQty: ing.quantity * factor })),
     [ingredients, factor],
   );
+
+  function onAdd() {
+    setFeedback("idle");
+    setErrorMsg(null);
+    startTransition(async () => {
+      const result = await addRecipeToActiveList(recipeId, servings);
+      if (result.ok) {
+        setFeedback("added");
+        setTimeout(() => setFeedback("idle"), 2200);
+      } else {
+        setFeedback("error");
+        setErrorMsg(result.error);
+      }
+    });
+  }
 
   return (
     <section style={{ marginTop: 24 }}>
@@ -51,13 +66,10 @@ export function ServingsStepper({
           flexWrap: "wrap",
         }}
       >
-        <h3
-          className="serif"
-          style={{ fontSize: 22, fontWeight: 500, margin: 0 }}
-        >
+        <h3 className="serif" style={{ fontSize: 22, fontWeight: 500, margin: 0 }}>
           Ingredients
         </h3>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <span style={{ fontSize: 12, color: "var(--ink-soft)" }}>Servings</span>
           <div className="qty-stepper">
             <button
@@ -79,11 +91,7 @@ export function ServingsStepper({
           {servings !== baseServings && (
             <span
               className="serif"
-              style={{
-                fontStyle: "italic",
-                fontSize: 12,
-                color: "var(--ink-soft)",
-              }}
+              style={{ fontStyle: "italic", fontSize: 12, color: "var(--ink-soft)" }}
             >
               scaled from {baseServings}
             </span>
@@ -152,19 +160,32 @@ export function ServingsStepper({
               style={{ fontSize: 15, color: "var(--ink)", minWidth: 90, textAlign: "right" }}
             >
               {fmtQty(ing.scaledQty)}{" "}
-              <span
-                style={{
-                  fontSize: 11,
-                  color: "var(--ink-soft)",
-                  fontStyle: "italic",
-                }}
-              >
+              <span style={{ fontSize: 11, color: "var(--ink-soft)", fontStyle: "italic" }}>
                 {ing.unit}
               </span>
             </div>
           </li>
         ))}
       </ul>
+
+      <div style={{ marginTop: 18, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={onAdd}
+          disabled={isPending}
+          className="btn btn-primary"
+        >
+          {feedback === "added" ? <Check /> : <ShoppingBasket />}
+          {feedback === "added"
+            ? "Added to list"
+            : isPending
+              ? "Adding…"
+              : `Add to shopping list (${servings} srv)`}
+        </button>
+        {feedback === "error" && errorMsg && (
+          <span style={{ color: "var(--terracotta)", fontSize: 12 }}>{errorMsg}</span>
+        )}
+      </div>
     </section>
   );
 }

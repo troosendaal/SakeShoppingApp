@@ -1,110 +1,41 @@
-import { AlertCircle, Check, MessageSquare, Plus } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { AlertCircle, MessageSquare, Plus } from "lucide-react";
+import { getLocale, getTranslations } from "next-intl/server";
 import { ConfigureBanner, isSupabaseConfigured } from "@/components/configure-banner";
+import { getActiveListGrouped } from "@/lib/db/shopping-list";
+import type { Locale } from "@/lib/db/recipe-types";
+import { formatQuantity } from "@/lib/units";
+import { errorMessage } from "@/lib/errors";
 
-type Item = {
-  emoji: string;
-  name: string;
-  source: string;
-  merged?: boolean;
-  qty: string;
-  unit: string;
-  stepper?: boolean;
-  urgent?: boolean;
-  note?: string;
-  done?: boolean;
-};
+export default async function ListPage() {
+  const t = await getTranslations();
+  const locale = ((await getLocale()) as Locale) ?? "en";
 
-type Group = { emoji: string; name: string; items: Item[] };
+  if (!isSupabaseConfigured()) {
+    return (
+      <>
+        <Header t={t} />
+        <ConfigureBanner message={t("common.configureSupabase")} />
+      </>
+    );
+  }
 
-const GROUPS: Group[] = [
-  {
-    emoji: "🥬",
-    name: "Fruit & Vegetables",
-    items: [
-      {
-        emoji: "🍋",
-        name: "Lemons",
-        source: "Pasta al limone",
-        qty: "3",
-        unit: "whole",
-        stepper: true,
-        urgent: true,
-        note: "Get the unwaxed ones if available",
-      },
-      {
-        emoji: "🧅",
-        name: "Onions",
-        source: "3 recipes · EN+NL+FR",
-        merged: true,
-        qty: "5",
-        unit: "whole",
-      },
-      {
-        emoji: "🥕",
-        name: "Carrots",
-        source: "Thai curry",
-        qty: "3",
-        unit: "whole",
-        done: true,
-      },
-    ],
-  },
-  {
-    emoji: "🥛",
-    name: "Dairy",
-    items: [
-      {
-        emoji: "🧀",
-        name: "Parmesan",
-        source: "Pasta + risotto",
-        qty: "200",
-        unit: "g",
-        note: "Reggiano if they have it, otherwise grana padano",
-      },
-      {
-        emoji: "🥚",
-        name: "Eggs",
-        source: "",
-        qty: "8",
-        unit: "whole",
-        stepper: true,
-        urgent: true,
-      },
-    ],
-  },
-  {
-    emoji: "🧼",
-    name: "Household",
-    items: [
-      {
-        emoji: "🧻",
-        name: "Toilet paper",
-        source: "ad-hoc",
-        qty: "1",
-        unit: "pack",
-        note: "The recycled brand we usually buy",
-      },
-    ],
-  },
-];
+  let data: Awaited<ReturnType<typeof getActiveListGrouped>> | null = null;
+  let loadError: string | null = null;
+  try {
+    data = await getActiveListGrouped(locale);
+  } catch (err) {
+    console.error("[list] getActiveListGrouped failed:", err);
+    loadError = errorMessage(err);
+  }
 
-export default function ListPage() {
-  const t = useTranslations();
-  const showBanner = !isSupabaseConfigured();
+  const allGroups = data ? [...data.groups, ...(data.otherGroup ? [data.otherGroup] : [])] : [];
+  const totalLines = allGroups.reduce((sum, g) => sum + g.lines.length, 0);
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h2>
-            {t("pages.list.title")} <em>{t("pages.list.titleEm")}</em>
-          </h2>
-          <p>{t("pages.list.subtitle")}</p>
-        </div>
-      </div>
+      <Header t={t} />
 
-      {showBanner && <ConfigureBanner message={t("common.configureSupabase")} />}
+      {loadError && <ErrorBox message={loadError} />}
 
       <div className="quick-add">
         <div className="quick-add-row">
@@ -119,75 +50,134 @@ export default function ListPage() {
             <Plus /> {t("common.add")}
           </button>
         </div>
+        <div style={{ fontSize: 11, color: "var(--ink-soft)", fontStyle: "italic", marginTop: 8 }}>
+          Quick-add is wired up in the next commit. For now, open a recipe and
+          tap "Add to shopping list" to populate this page.
+        </div>
       </div>
 
-      <div className="list-main">
-        {GROUPS.map((group) => (
-          <div key={group.name} className="list-group">
-            <div className="group-head">
-              <h4 className="serif">
-                <span className="em">{group.emoji}</span> {group.name}{" "}
-                <span className="count">{group.items.length}</span>
-              </h4>
-            </div>
-            {group.items.map((item, i) => (
-              <div
-                key={i}
-                className={`list-item${item.urgent ? " urgent" : ""}${item.done ? " done" : ""}`}
-              >
-                <div className="check">
-                  <Check />
-                </div>
-                <div className="item-icon">{item.emoji}</div>
-                <div className="item-main">
-                  <div className="item-row">
-                    <span className="item-name">{item.name}</span>
-                    {item.urgent && (
-                      <span className="urgent-flag">
-                        <AlertCircle /> {t("common.urgent")}
-                      </span>
-                    )}
-                    {item.source && (
-                      <span className={`item-source${item.merged ? " merged" : ""}`}>
-                        {item.source}
-                      </span>
-                    )}
-                  </div>
-                  {item.note ? (
-                    <div className="note">
-                      <MessageSquare /> {item.note}
-                    </div>
-                  ) : (
-                    <button type="button" className="note-add">
-                      <Plus /> {t("common.addNote")}
-                    </button>
-                  )}
-                </div>
-                <div className="qty-cell">
-                  {item.stepper ? (
-                    <>
-                      <div className="qty-stepper">
-                        <button type="button">−</button>
-                        <span className="num serif">{item.qty}</span>
-                        <button type="button">+</button>
-                      </div>
-                      <span
-                        style={{ fontSize: 11, color: "var(--ink-soft)", fontStyle: "italic" }}
-                      >
-                        {item.unit}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="qty-display serif">
-                      {item.qty} <span className="unit">{item.unit}</span>
-                    </span>
-                  )}
-                </div>
+      {totalLines === 0 && !loadError ? (
+        <EmptyState />
+      ) : (
+        <div className="list-main">
+          {allGroups.map((group) => (
+            <div key={group.categoryId} className="list-group">
+              <div className="group-head">
+                <h4 className="serif">
+                  <span className="em">{group.categoryEmoji}</span> {group.categoryName}{" "}
+                  <span className="count">{group.lines.length}</span>
+                </h4>
               </div>
-            ))}
-          </div>
-        ))}
-      </div>
+              {group.lines.map((line) => {
+                const ing = line.ingredient;
+                const name =
+                  locale === "nl" ? ing.name_nl : locale === "fr" ? ing.name_fr : ing.name_en;
+                const formatted = formatQuantity(line.totalQty, line.unit, { locale });
+                const sourceLabel =
+                  line.sources.length === 0
+                    ? ""
+                    : line.sources.length === 1
+                      ? line.sources[0].kind === "adhoc"
+                        ? "ad-hoc"
+                        : line.sources[0].recipeTitle
+                      : `${line.sources.length} sources`;
+                const isMergedFromMultiple = line.sources.length > 1;
+
+                return (
+                  <div
+                    key={line.key}
+                    className={`list-item${line.isUrgent ? " urgent" : ""}${line.isChecked ? " done" : ""}`}
+                  >
+                    <div className="check" />
+                    <div className="item-icon">{ing.emoji}</div>
+                    <div className="item-main">
+                      <div className="item-row">
+                        <span className="item-name">{name}</span>
+                        {line.isUrgent && (
+                          <span className="urgent-flag">
+                            <AlertCircle /> {t("common.urgent")}
+                          </span>
+                        )}
+                        {sourceLabel && (
+                          <span
+                            className={`item-source${isMergedFromMultiple ? " merged" : ""}`}
+                          >
+                            {sourceLabel}
+                          </span>
+                        )}
+                      </div>
+                      {line.note && (
+                        <div className="note">
+                          <MessageSquare /> {line.note}
+                        </div>
+                      )}
+                    </div>
+                    <div className="qty-cell">
+                      <span className="qty-display serif">
+                        {formatted.qty} <span className="unit">{formatted.unit}</span>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
     </>
+  );
+}
+
+function Header({ t }: { t: (k: string) => string }) {
+  return (
+    <div className="page-head">
+      <div>
+        <h2>
+          {t("pages.list.title")} <em>{t("pages.list.titleEm")}</em>
+        </h2>
+        <p>{t("pages.list.subtitle")}</p>
+      </div>
+    </div>
+  );
+}
+
+function ErrorBox({ message }: { message: string }) {
+  return (
+    <div
+      style={{
+        background: "var(--terracotta-soft)",
+        border: "1px solid var(--terracotta)",
+        color: "var(--ink)",
+        borderRadius: 10,
+        padding: "10px 14px",
+        marginBottom: 16,
+        fontSize: 13,
+      }}
+    >
+      Couldn't load list: {message}
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div
+      style={{
+        background: "var(--bg-card)",
+        border: "1px solid var(--line)",
+        borderRadius: 14,
+        padding: 48,
+        textAlign: "center",
+        boxShadow: "var(--shadow)",
+        color: "var(--ink-soft)",
+      }}
+    >
+      <h3 className="serif" style={{ fontWeight: 400, fontSize: 22, margin: 0, color: "var(--ink)" }}>
+        Your list is empty
+      </h3>
+      <p style={{ marginTop: 8, fontSize: 14 }}>
+        Open a recipe and tap <strong>Add to shopping list</strong> to start.
+      </p>
+    </div>
   );
 }
