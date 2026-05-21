@@ -173,12 +173,17 @@ export async function removeMealPlanEntry(
 }
 
 // Full rebuild — wipes any auto-synced rows on the active list and rebuilds
-// them from the current meal-plan-entries. Use this when something got out
-// of sync. Manually-added rows on the list (via "Add to shopping list" on a
-// recipe detail page) are NOT preserved here, by design — the user's most
-// recent intent is the meal plan.
+// them from the current meal-plan-entries. Returns a verbose summary so the
+// UI can show the user exactly what happened (helpful when "nothing seems
+// to change" turns out to mean "your meal plan is empty").
 export async function resyncShoppingListFromMealPlan(): Promise<
-  ActionResult<{ recipesOnList: number }>
+  ActionResult<{
+    listId: string;
+    activeListPrefix: string;
+    mealPlanEntriesFound: number;
+    uniqueRecipes: number;
+    recipeTitles: string[];
+  }>
 > {
   const supabase = await createClient();
   const {
@@ -188,22 +193,36 @@ export async function resyncShoppingListFromMealPlan(): Promise<
 
   const list = await getOrCreateActiveList();
 
-  // Pull every meal_plan_entry the user has (RLS already scopes this to
-  // their plans).
+  // Pull every meal_plan_entry the user has (RLS scopes to their plans),
+  // joined with recipes so we can echo the titles back to the UI.
   const { data: allEntries, error: entErr } = await supabase
     .from("meal_plan_entries")
-    .select("recipe_id, servings");
-  if (entErr) return { ok: false, error: entErr.message };
-
-  // Coalesce by recipe → total servings.
-  const byRecipe = new Map<string, number>();
-  for (const e of allEntries ?? []) {
-    const rid = e.recipe_id as string;
-    const s = Number(e.servings) || 0;
-    byRecipe.set(rid, (byRecipe.get(rid) ?? 0) + s);
+    .select("recipe_id, servings, recipe:recipes ( title )");
+  if (entErr) {
+    console.error("[resync] fetch entries failed:", entErr);
+    return { ok: false, error: entErr.message };
   }
 
-  // Wipe the entire active list's recipe rows so stale ones disappear.
+  type Row = {
+    recipe_id: string;
+    servings: number;
+    recipe: { title: string } | { title: string }[] | null;
+  };
+
+  const byRecipe = new Map<string, { servings: number; title: string }>();
+  for (const e of (allEntries ?? []) as unknown as Row[]) {
+    const rid = e.recipe_id;
+    const s = Number(e.servings) || 0;
+    const rec = Array.isArray(e.recipe) ? e.recipe[0] : e.recipe;
+    const title = rec?.title ?? "(unknown)";
+    const prev = byRecipe.get(rid);
+    byRecipe.set(rid, {
+      servings: (prev?.servings ?? 0) + s,
+      title,
+    });
+  }
+
+  // Wipe + reinsert.
   const { error: delErr } = await supabase
     .from("list_recipes")
     .delete()
@@ -213,12 +232,11 @@ export async function resyncShoppingListFromMealPlan(): Promise<
     return { ok: false, error: delErr.message };
   }
 
-  // Insert the canonical set.
   if (byRecipe.size > 0) {
-    const rows = Array.from(byRecipe, ([recipe_id, servings]) => ({
+    const rows = Array.from(byRecipe, ([recipe_id, info]) => ({
       list_id: list.id,
       recipe_id,
-      servings,
+      servings: info.servings,
     }));
     const { error: insErr } = await supabase.from("list_recipes").insert(rows);
     if (insErr) {
@@ -228,11 +246,18 @@ export async function resyncShoppingListFromMealPlan(): Promise<
   }
 
   console.log(
-    `[resync] list=${list.id.slice(0, 8)} recipes=${byRecipe.size}`,
+    `[resync] list=${list.id.slice(0, 8)} entries=${allEntries?.length ?? 0} recipes=${byRecipe.size}`,
   );
   revalidatePath("/list");
   revalidatePath("/plan");
-  return { ok: true, recipesOnList: byRecipe.size };
+  return {
+    ok: true,
+    listId: list.id,
+    activeListPrefix: list.id.slice(0, 8),
+    mealPlanEntriesFound: allEntries?.length ?? 0,
+    uniqueRecipes: byRecipe.size,
+    recipeTitles: Array.from(byRecipe.values()).map((v) => v.title),
+  };
 }
 
 // Adds every meal-plan entry in the given week onto the user's active
