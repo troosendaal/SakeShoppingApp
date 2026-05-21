@@ -10,8 +10,19 @@ import {
   MEAL_CATEGORIES,
   UNITS,
 } from "@/lib/db/recipe-types";
+import { unitTypeOf } from "@/lib/units";
 import { createRecipe, updateRecipe } from "../actions";
 import { BulkIngredientInput } from "./bulk-ingredient-input";
+
+// European/metric defaults for each canonical type.
+const DEFAULT_UNIT_FOR_TYPE: Record<
+  IngredientLite["canonical_unit_type"],
+  string
+> = {
+  mass: "g",
+  volume: "ml",
+  count: "whole",
+};
 
 type IngRow = {
   ingredient_id: string;
@@ -123,6 +134,28 @@ export function RecipeForm({
       ...prev,
       { ingredient_id: "", quantity: "", unit: "g", is_optional: false },
     ]);
+  }
+
+  // When the user picks a different ingredient in a row, switch the unit
+  // to that ingredient's sensible default — but only if their current unit
+  // doesn't already belong to the new ingredient's canonical type. So a
+  // deliberate "kg" stays "kg" when swapping between two mass ingredients;
+  // it only flips when going from mass→volume etc.
+  function onIngredientChange(rowIndex: number, ingredientId: string) {
+    const ing = ingredients.find((x) => x.id === ingredientId);
+    if (!ing) {
+      updateRow(rowIndex, { ingredient_id: ingredientId });
+      return;
+    }
+    const currentRow = rows[rowIndex];
+    const currentType = unitTypeOf(currentRow.unit);
+    const shouldResetUnit = currentType !== ing.canonical_unit_type;
+    updateRow(rowIndex, {
+      ingredient_id: ingredientId,
+      ...(shouldResetUnit
+        ? { unit: DEFAULT_UNIT_FOR_TYPE[ing.canonical_unit_type] }
+        : {}),
+    });
   }
   function removeRow(i: number) {
     setRows((prev) => prev.filter((_, idx) => idx !== i));
@@ -304,7 +337,7 @@ export function RecipeForm({
             >
               <select
                 value={row.ingredient_id}
-                onChange={(e) => updateRow(i, { ingredient_id: e.target.value })}
+                onChange={(e) => onIngredientChange(i, e.target.value)}
                 style={inputStyle}
                 required
               >
