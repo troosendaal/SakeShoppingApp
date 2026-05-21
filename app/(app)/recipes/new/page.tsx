@@ -4,6 +4,7 @@ import { getLocale } from "next-intl/server";
 import { isSupabaseConfigured } from "@/components/configure-banner";
 import { listIngredients } from "@/lib/db/recipes";
 import type { Locale } from "@/lib/db/recipe-types";
+import { errorMessage } from "@/lib/errors";
 import { RecipeForm } from "./recipe-form";
 
 export default async function NewRecipePage() {
@@ -21,7 +22,15 @@ export default async function NewRecipePage() {
   }
 
   const locale = ((await getLocale()) as Locale) ?? "en";
-  const ingredients = await listIngredients();
+
+  let ingredients: Awaited<ReturnType<typeof listIngredients>> = [];
+  let loadError: string | null = null;
+  try {
+    ingredients = await listIngredients();
+  } catch (err) {
+    console.error("[recipes/new] listIngredients failed:", err);
+    loadError = errorMessage(err);
+  }
 
   return (
     <>
@@ -49,6 +58,22 @@ export default async function NewRecipePage() {
           <p>Title, photo-less hero emoji, ingredients, and the basics.</p>
         </div>
       </div>
+
+      {loadError && (
+        <div
+          style={{
+            background: "var(--terracotta-soft)",
+            border: "1px solid var(--terracotta)",
+            color: "var(--ink)",
+            borderRadius: 10,
+            padding: "10px 14px",
+            marginBottom: 16,
+            fontSize: 13,
+          }}
+        >
+          Couldn't load ingredients: {loadError}
+        </div>
+      )}
 
       <RecipeForm ingredients={ingredients} locale={locale} />
     </>

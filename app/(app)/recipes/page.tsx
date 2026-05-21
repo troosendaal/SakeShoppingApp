@@ -3,6 +3,7 @@ import { Clock, Heart, Plus, Search } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 import { ConfigureBanner, isSupabaseConfigured } from "@/components/configure-banner";
 import { getMyRecipes } from "@/lib/db/recipes";
+import { errorMessage } from "@/lib/errors";
 
 export default async function RecipesPage() {
   const t = await getTranslations();
@@ -14,7 +15,8 @@ export default async function RecipesPage() {
     try {
       recipes = await getMyRecipes();
     } catch (err) {
-      loadError = err instanceof Error ? err.message : "Failed to load recipes";
+      console.error("[recipes] getMyRecipes failed:", err);
+      loadError = errorMessage(err);
     }
   }
 
