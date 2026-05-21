@@ -27,13 +27,21 @@ export async function getMyRecipes(): Promise<RecipeCardData[]> {
   if (!data) return [];
 
   return data.map((r) => {
-    const ris = (r.recipe_ingredients ?? []) as Array<{
+    // Supabase types the nested relation inconsistently — sometimes a single
+    // object, sometimes a one-element array. Handle both.
+    const ris = (r.recipe_ingredients ?? []) as unknown as Array<{
       position: number;
-      ingredients: { emoji: string } | null;
+      ingredients: { emoji: string } | Array<{ emoji: string }> | null;
     }>;
     const ingredient_emojis = ris
+      .slice()
       .sort((a, b) => a.position - b.position)
-      .map((ri) => ri.ingredients?.emoji)
+      .map((ri) => {
+        if (!ri.ingredients) return undefined;
+        return Array.isArray(ri.ingredients)
+          ? ri.ingredients[0]?.emoji
+          : ri.ingredients.emoji;
+      })
       .filter((e): e is string => Boolean(e))
       .slice(0, 6);
     return {
