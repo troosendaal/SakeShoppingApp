@@ -236,6 +236,8 @@ export async function getActiveListGrouped(locale: Locale): Promise<GroupedList>
     const state = stateByIngId.get(b.ingredient.id);
     let qty = b.totalQty;
     let unit = b.displayUnit;
+    const hasQtyOverride =
+      state?.quantity_override != null || !!state?.unit_override;
     if (state?.quantity_override != null) qty = state.quantity_override;
     if (state?.unit_override) unit = state.unit_override;
 
@@ -249,6 +251,7 @@ export async function getActiveListGrouped(locale: Locale): Promise<GroupedList>
       isChecked: state?.is_checked ?? false,
       isUrgent: state?.is_urgent ?? false,
       note: state?.note ?? null,
+      hasQtyOverride,
     });
   }
 

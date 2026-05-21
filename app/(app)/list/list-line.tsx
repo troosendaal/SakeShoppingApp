@@ -4,13 +4,22 @@ import {
   AlertCircle,
   Check,
   MessageSquare,
+  Minus,
   MoreVertical,
   Plus,
+  RotateCcw,
   Trash2,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { setLineChecked, setLineNote, setLineUrgent } from "./actions";
+import { UNITS } from "@/lib/db/recipe-types";
+import {
+  clearLineQuantityOverride,
+  setLineChecked,
+  setLineNote,
+  setLineQuantity,
+  setLineUrgent,
+} from "./actions";
 
 type LineSource =
   | { kind: "recipe"; recipeTitle: string }
@@ -22,10 +31,12 @@ export function ListLine({
   name,
   sources,
   qtyDisplay,
+  qtyValue,
   unitDisplay,
   isChecked,
   isUrgent,
   note,
+  hasQtyOverride,
   urgentLabel,
 }: {
   ingredientId: string;
@@ -33,10 +44,12 @@ export function ListLine({
   name: string;
   sources: LineSource[];
   qtyDisplay: string;
+  qtyValue: number;
   unitDisplay: string;
   isChecked: boolean;
   isUrgent: boolean;
   note: string | null;
+  hasQtyOverride: boolean;
   urgentLabel: string;
 }) {
   const [pending, startTransition] = useTransition();
@@ -44,6 +57,11 @@ export function ListLine({
   const [editingNote, setEditingNote] = useState(false);
   const [noteDraft, setNoteDraft] = useState(note ?? "");
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const [qtyOpen, setQtyOpen] = useState(false);
+  const [qtyDraft, setQtyDraft] = useState(qtyValue);
+  const [unitDraft, setUnitDraft] = useState(unitDisplay);
+  const qtyRef = useRef<HTMLDivElement | null>(null);
 
   // Optimistic local mirrors so the UI feels snappy.
   const [localChecked, setLocalChecked] = useState(isChecked);
@@ -68,6 +86,18 @@ export function ListLine({
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, [menuOpen]);
+
+  // Click-outside to close the qty popover (without saving)
+  useEffect(() => {
+    if (!qtyOpen) return;
+    function onClick(e: MouseEvent) {
+      if (qtyRef.current && !qtyRef.current.contains(e.target as Node)) {
+        setQtyOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [qtyOpen]);
 
   function toggleCheck() {
     const next = !localChecked;
@@ -111,6 +141,25 @@ export function ListLine({
   function cancelNote() {
     setEditingNote(false);
     setNoteDraft(localNote ?? "");
+  }
+
+  function openQty() {
+    setQtyDraft(qtyValue);
+    setUnitDraft(unitDisplay);
+    setQtyOpen(true);
+  }
+  function saveQty() {
+    if (!Number.isFinite(qtyDraft) || qtyDraft <= 0) return;
+    setQtyOpen(false);
+    startTransition(() => {
+      void setLineQuantity(ingredientId, qtyDraft, unitDraft);
+    });
+  }
+  function resetQty() {
+    setQtyOpen(false);
+    startTransition(() => {
+      void clearLineQuantityOverride(ingredientId);
+    });
   }
 
   const sourceLabel = labelFor(sources);
@@ -221,10 +270,196 @@ export function ListLine({
           </button>
         )}
       </div>
-      <div className="qty-cell">
-        <span className="qty-display serif">
+      <div ref={qtyRef} className="qty-cell" style={{ position: "relative" }}>
+        <button
+          type="button"
+          onClick={openQty}
+          className="qty-display serif"
+          style={{
+            border: "none",
+            background: "transparent",
+            padding: 0,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "baseline",
+            gap: 4,
+          }}
+          aria-label="Edit quantity"
+        >
           {qtyDisplay} <span className="unit">{unitDisplay}</span>
-        </span>
+          {hasQtyOverride && (
+            <span
+              title="Manually edited — click to adjust or reset"
+              style={{
+                fontSize: 9,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "var(--terracotta)",
+                background: "var(--terracotta-soft)",
+                padding: "1px 5px",
+                borderRadius: 4,
+                marginLeft: 4,
+                fontStyle: "normal",
+                fontFamily: "var(--font-sans), sans-serif",
+              }}
+            >
+              edited
+            </span>
+          )}
+        </button>
+        {qtyOpen && (
+          <div
+            style={{
+              position: "absolute",
+              top: 28,
+              right: 0,
+              background: "var(--bg-card)",
+              border: "1px solid var(--line)",
+              borderRadius: 12,
+              boxShadow: "var(--shadow)",
+              padding: 12,
+              minWidth: 240,
+              zIndex: 15,
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                color: "var(--ink-soft)",
+              }}
+            >
+              Quantity
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div className="qty-stepper">
+                <button
+                  type="button"
+                  onClick={() => setQtyDraft((q) => Math.max(0.1, +(q - 1).toFixed(2)))}
+                  aria-label="Decrease"
+                >
+                  <Minus size={12} />
+                </button>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={qtyDraft}
+                  onChange={(e) => setQtyDraft(Number(e.target.value))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveQty();
+                    if (e.key === "Escape") setQtyOpen(false);
+                  }}
+                  style={{
+                    width: 60,
+                    textAlign: "center",
+                    border: "none",
+                    background: "transparent",
+                    fontFamily: "var(--font-serif), serif",
+                    fontSize: 14,
+                    fontWeight: 500,
+                    outline: "none",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setQtyDraft((q) => +(q + 1).toFixed(2))}
+                  aria-label="Increase"
+                >
+                  <Plus size={12} />
+                </button>
+              </div>
+              <select
+                value={unitDraft}
+                onChange={(e) => setUnitDraft(e.target.value)}
+                style={{
+                  flex: 1,
+                  border: "1px solid var(--line)",
+                  borderRadius: 8,
+                  padding: "6px 8px",
+                  background: "var(--bg-paper)",
+                  fontSize: 13,
+                  fontFamily: "inherit",
+                  outline: "none",
+                }}
+              >
+                {UNITS.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              {hasQtyOverride ? (
+                <button
+                  type="button"
+                  onClick={resetQty}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    cursor: "pointer",
+                    color: "var(--ink-soft)",
+                    fontSize: 12,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    padding: 0,
+                  }}
+                >
+                  <RotateCcw size={12} /> Reset to auto
+                </button>
+              ) : (
+                <span />
+              )}
+              <div style={{ display: "flex", gap: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setQtyOpen(false)}
+                  style={{
+                    border: "1px solid var(--line)",
+                    background: "transparent",
+                    color: "var(--ink-soft)",
+                    padding: "5px 10px",
+                    fontSize: 12,
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveQty}
+                  style={{
+                    border: "none",
+                    background: "var(--ink)",
+                    color: "var(--bg)",
+                    padding: "5px 12px",
+                    fontSize: 12,
+                    fontWeight: 500,
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       <div ref={menuRef} style={{ position: "relative" }}>
         <button

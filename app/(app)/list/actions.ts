@@ -138,6 +138,61 @@ export async function setLineNote(
 }
 
 // --------------------------------------------------------------------------
+// Manual quantity / unit override
+// --------------------------------------------------------------------------
+// Persists the user's overrides without touching the recipe contributions
+// underneath. Clearing the override (passing null) falls back to the
+// auto-summed quantity in the next render.
+
+export async function setLineQuantity(
+  ingredientId: string,
+  quantity: number,
+  unit: string,
+): Promise<ActionResult> {
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    return { ok: false, error: "Quantity must be positive" };
+  }
+  if (!unit) return { ok: false, error: "Pick a unit" };
+  const supabase = await createClient();
+  const list = await getOrCreateActiveList();
+  const { error } = await supabase
+    .from("list_line_state")
+    .upsert(
+      {
+        list_id: list.id,
+        ingredient_id: ingredientId,
+        quantity_override: quantity,
+        unit_override: unit,
+      },
+      { onConflict: "list_id,ingredient_id" },
+    );
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/list");
+  return { ok: true };
+}
+
+export async function clearLineQuantityOverride(
+  ingredientId: string,
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const list = await getOrCreateActiveList();
+  const { error } = await supabase
+    .from("list_line_state")
+    .upsert(
+      {
+        list_id: list.id,
+        ingredient_id: ingredientId,
+        quantity_override: null,
+        unit_override: null,
+      },
+      { onConflict: "list_id,ingredient_id" },
+    );
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/list");
+  return { ok: true };
+}
+
+// --------------------------------------------------------------------------
 // Ad-hoc items (the quick-add card)
 // --------------------------------------------------------------------------
 

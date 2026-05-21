@@ -96,10 +96,12 @@ export default async function ListPage() {
                             : { kind: "adhoc" },
                         )}
                         qtyDisplay={formatted.qty}
+                        qtyValue={line.totalQty}
                         unitDisplay={formatted.unit}
                         isChecked={line.isChecked}
                         isUrgent={line.isUrgent}
                         note={line.note}
+                        hasQtyOverride={line.hasQtyOverride}
                         urgentLabel={t("common.urgent")}
                       />
                     );

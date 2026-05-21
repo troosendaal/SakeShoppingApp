@@ -23,6 +23,9 @@ export type MergedLine = {
   isChecked: boolean;
   isUrgent: boolean;
   note: string | null;
+  // True when the user has manually overridden the auto-summed quantity
+  // and/or unit. Used in the UI to show an "edited" hint and offer reset.
+  hasQtyOverride: boolean;
 };
 
 export type ListCategoryGroup = {
