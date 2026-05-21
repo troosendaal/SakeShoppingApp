@@ -1,14 +1,22 @@
 "use client";
 
+import { KeyRound, Mail } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
+type Mode = "password" | "magic";
+
 export function SignupForm() {
+  const router = useRouter();
+  const [mode, setMode] = useState<Mode>("password");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [language, setLanguage] = useState<"en" | "nl" | "fr">("en");
-  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">(
+    "idle",
+  );
   const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
@@ -17,16 +25,41 @@ export function SignupForm() {
     setError(null);
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-          // Stashed in user_metadata; /auth/callback reads it to create the profile row.
-          data: { display_name: displayName, preferred_language: language },
-        },
-      });
-      if (error) throw error;
-      setStatus("sent");
+      const userMetadata = {
+        display_name: displayName,
+        preferred_language: language,
+      };
+
+      if (mode === "magic") {
+        const { error: err } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: userMetadata,
+          },
+        });
+        if (err) throw err;
+        setStatus("sent");
+      } else {
+        const { data, error: err } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            data: userMetadata,
+          },
+        });
+        if (err) throw err;
+        // If email confirmation is required, signUp returns user but no
+        // session — they need to click the confirm link. If it's disabled
+        // (Supabase Auth settings), we get a session right away.
+        if (data.session) {
+          router.push("/recipes");
+          router.refresh();
+        } else {
+          setStatus("sent");
+        }
+      }
     } catch (err) {
       setStatus("error");
       setError(err instanceof Error ? err.message : "Sign-up failed");
@@ -36,13 +69,15 @@ export function SignupForm() {
   if (status === "sent") {
     return (
       <div style={{ color: "var(--olive)", fontSize: 14 }}>
-        ✓ Magic link sent. Open the email from <strong>{email}</strong> to finish.
+        ✓ Check your inbox — confirm via the link we sent to{" "}
+        <strong>{email}</strong>.
       </div>
     );
   }
 
   return (
     <form onSubmit={onSubmit}>
+      <ModeToggle mode={mode} onChange={setMode} />
       <label htmlFor="name">Your name</label>
       <input
         id="name"
@@ -50,6 +85,7 @@ export function SignupForm() {
         value={displayName}
         onChange={(e) => setDisplayName(e.target.value)}
         placeholder="Maria"
+        autoComplete="name"
       />
       <label htmlFor="email">Email</label>
       <input
@@ -59,7 +95,23 @@ export function SignupForm() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@example.com"
+        autoComplete="email"
       />
+      {mode === "password" && (
+        <>
+          <label htmlFor="password">Password</label>
+          <input
+            id="password"
+            type="password"
+            required
+            minLength={6}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="At least 6 characters"
+            autoComplete="new-password"
+          />
+        </>
+      )}
       <label htmlFor="lang">Preferred language</label>
       <select
         id="lang"
@@ -81,11 +133,67 @@ export function SignupForm() {
         <option value="fr">Français</option>
       </select>
       {error && (
-        <div style={{ color: "var(--terracotta)", fontSize: 12, marginBottom: 12 }}>{error}</div>
+        <div style={{ color: "var(--terracotta)", fontSize: 12, marginBottom: 12 }}>
+          {error}
+        </div>
       )}
-      <button type="submit" className="btn btn-primary" disabled={status === "sending"}>
-        <Mail /> {status === "sending" ? "Sending…" : "Send magic link"}
+      <button
+        type="submit"
+        className="btn btn-primary"
+        disabled={status === "sending"}
+      >
+        {mode === "magic" ? <Mail /> : <KeyRound size={16} />}
+        {status === "sending"
+          ? "Creating account…"
+          : mode === "magic"
+            ? "Send magic link"
+            : "Create account"}
       </button>
     </form>
+  );
+}
+
+function ModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: Mode;
+  onChange: (m: Mode) => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        background: "var(--bg-paper)",
+        border: "1px solid var(--line)",
+        borderRadius: 10,
+        padding: 3,
+        marginBottom: 16,
+      }}
+    >
+      {(["password", "magic"] as Mode[]).map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => onChange(m)}
+          style={{
+            flex: 1,
+            border: "none",
+            background: mode === m ? "var(--ink)" : "transparent",
+            color: mode === m ? "var(--bg)" : "var(--ink-soft)",
+            padding: "6px 10px",
+            borderRadius: 7,
+            fontFamily: "inherit",
+            fontSize: 12,
+            fontWeight: 600,
+            letterSpacing: "0.06em",
+            textTransform: "uppercase",
+            cursor: "pointer",
+          }}
+        >
+          {m === "password" ? "Password" : "Magic link"}
+        </button>
+      ))}
+    </div>
   );
 }
