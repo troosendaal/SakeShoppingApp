@@ -56,6 +56,26 @@ create table user_category_prefs (
 -- ---------------------------------------------------------------------------
 -- INGREDIENTS (canonical, multilingual)
 -- ---------------------------------------------------------------------------
+-- Postgres requires expressions in generated columns to be IMMUTABLE.
+-- to_tsvector('simple', ...) is STABLE, so we wrap it in an immutable
+-- function. 'simple'::regconfig doesn't depend on session state, so marking
+-- the wrapper IMMUTABLE is safe.
+create or replace function ingredients_search_tsv(
+  name_en text, name_nl text, name_fr text,
+  aliases_en text[], aliases_nl text[], aliases_fr text[]
+) returns tsvector
+language sql
+immutable
+parallel safe
+as $$
+  select to_tsvector('simple'::regconfig,
+    coalesce(name_en,'') || ' ' || coalesce(name_nl,'') || ' ' || coalesce(name_fr,'') || ' ' ||
+    array_to_string(coalesce(aliases_en,'{}'), ' ') || ' ' ||
+    array_to_string(coalesce(aliases_nl,'{}'), ' ') || ' ' ||
+    array_to_string(coalesce(aliases_fr,'{}'), ' ')
+  )
+$$;
+
 create table ingredients (
   id uuid primary key default gen_random_uuid(),
   slug text unique,                       -- machine ID, e.g. 'onion-yellow'
@@ -73,14 +93,9 @@ create table ingredients (
   owner_id uuid references profiles(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  -- generated multilingual search column
+  -- generated multilingual search column (uses the wrapper above)
   search_tsv tsvector generated always as (
-    to_tsvector('simple',
-      coalesce(name_en,'') || ' ' || coalesce(name_nl,'') || ' ' || coalesce(name_fr,'') || ' ' ||
-      array_to_string(coalesce(aliases_en,'{}'), ' ') || ' ' ||
-      array_to_string(coalesce(aliases_nl,'{}'), ' ') || ' ' ||
-      array_to_string(coalesce(aliases_fr,'{}'), ' ')
-    )
+    ingredients_search_tsv(name_en, name_nl, name_fr, aliases_en, aliases_nl, aliases_fr)
   ) stored
 );
 
