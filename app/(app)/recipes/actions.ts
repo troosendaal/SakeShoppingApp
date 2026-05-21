@@ -1,0 +1,105 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { createClient } from "@/lib/supabase/server";
+
+const IngredientRow = z.object({
+  ingredient_id: z.string().uuid(),
+  quantity: z.coerce.number().positive(),
+  unit: z.string().min(1),
+  is_optional: z.boolean().optional().default(false),
+});
+
+const RecipeInput = z.object({
+  title: z.string().min(1, "Title is required").max(120),
+  description: z.string().max(2000).optional().nullable(),
+  url: z.string().url().optional().or(z.literal("")).nullable(),
+  instructions: z.string().max(10000).optional().nullable(),
+  meal_category: z.enum([
+    "breakfast",
+    "lunch",
+    "dinner",
+    "dessert",
+    "sweets",
+    "snack",
+  ]),
+  food_tags: z.array(z.string().min(1)).default([]),
+  base_servings: z.coerce.number().int().positive().default(4),
+  prep_time_min: z.coerce.number().int().min(0).optional().nullable(),
+  lead_time_min: z.coerce.number().int().min(0).optional().nullable(),
+  hero_emoji: z.string().min(1).default("🍽️"),
+  source_language: z.enum(["en", "nl", "fr"]).default("en"),
+  ingredients: z.array(IngredientRow).min(1, "Add at least one ingredient"),
+});
+
+export type CreateRecipeResult =
+  | { ok: true; recipeId: string }
+  | { ok: false; error: string };
+
+export async function createRecipe(
+  raw: unknown,
+): Promise<CreateRecipeResult> {
+  const parsed = RecipeInput.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues.map((i) => i.message).join("; ") };
+  }
+  const input = parsed.data;
+
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in" };
+
+  const { data: recipe, error: rErr } = await supabase
+    .from("recipes")
+    .insert({
+      owner_id: user.id,
+      title: input.title,
+      description: input.description || null,
+      url: input.url || null,
+      instructions: input.instructions || null,
+      meal_category: input.meal_category,
+      food_tags: input.food_tags,
+      base_servings: input.base_servings,
+      prep_time_min: input.prep_time_min ?? null,
+      lead_time_min: input.lead_time_min ?? null,
+      hero_emoji: input.hero_emoji,
+      source_language: input.source_language,
+    })
+    .select("id")
+    .single();
+
+  if (rErr || !recipe) {
+    return { ok: false, error: rErr?.message ?? "Failed to create recipe" };
+  }
+
+  const rows = input.ingredients.map((ing, i) => ({
+    recipe_id: recipe.id,
+    ingredient_id: ing.ingredient_id,
+    quantity: ing.quantity,
+    unit: ing.unit,
+    is_optional: ing.is_optional ?? false,
+    position: i,
+  }));
+
+  const { error: iErr } = await supabase.from("recipe_ingredients").insert(rows);
+  if (iErr) {
+    // Best-effort cleanup so we don't leave an orphan recipe.
+    await supabase.from("recipes").delete().eq("id", recipe.id);
+    return { ok: false, error: `Ingredients failed: ${iErr.message}` };
+  }
+
+  revalidatePath("/recipes");
+  return { ok: true, recipeId: recipe.id };
+}
+
+export async function deleteRecipe(id: string): Promise<void> {
+  const supabase = await createClient();
+  await supabase.from("recipes").delete().eq("id", id);
+  revalidatePath("/recipes");
+  redirect("/recipes");
+}
