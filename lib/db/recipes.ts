@@ -18,7 +18,10 @@ export async function getMyRecipes(): Promise<RecipeCardData[]> {
       `
       id, title, hero_emoji, meal_category, food_tags, base_servings,
       prep_time_min, lead_time_min, description,
-      recipe_ingredients ( position, ingredients ( emoji ) )
+      recipe_ingredients (
+        position,
+        ingredients ( emoji, name_en, name_nl, name_fr )
+      )
     `,
     )
     .order("created_at", { ascending: false });
@@ -26,27 +29,46 @@ export async function getMyRecipes(): Promise<RecipeCardData[]> {
   if (error) throw error;
   if (!data) return [];
 
+  type RawIng = {
+    emoji: string;
+    name_en: string;
+    name_nl: string;
+    name_fr: string;
+  };
+  type RawRI = {
+    position: number;
+    ingredients: RawIng | RawIng[] | null;
+  };
+
   return data.map((r) => {
-    // Supabase types the nested relation inconsistently — sometimes a single
-    // object, sometimes a one-element array. Handle both.
-    const ris = (r.recipe_ingredients ?? []) as unknown as Array<{
-      position: number;
-      ingredients: { emoji: string } | Array<{ emoji: string }> | null;
-    }>;
-    const ingredient_emojis = ris
+    const ris = (r.recipe_ingredients ?? []) as unknown as RawRI[];
+    const flat = ris
       .slice()
       .sort((a, b) => a.position - b.position)
       .map((ri) => {
-        if (!ri.ingredients) return undefined;
-        return Array.isArray(ri.ingredients)
-          ? ri.ingredients[0]?.emoji
-          : ri.ingredients.emoji;
+        if (!ri.ingredients) return null;
+        return Array.isArray(ri.ingredients) ? ri.ingredients[0] : ri.ingredients;
       })
+      .filter((i): i is RawIng => Boolean(i));
+
+    const ingredient_emojis = flat
+      .map((i) => i.emoji)
       .filter((e): e is string => Boolean(e))
       .slice(0, 6);
+
+    // Searchable haystack for the client-side filter: title + every
+    // ingredient name in all 3 languages + food tags, all lowercased.
+    const title = (r.title as string) ?? "";
+    const tags = ((r.food_tags ?? []) as string[]).join(" ");
+    const ingNames = flat
+      .flatMap((i) => [i.name_en, i.name_nl, i.name_fr])
+      .filter(Boolean)
+      .join(" ");
+    const search_haystack = `${title} ${tags} ${ingNames}`.toLowerCase();
+
     return {
       id: r.id as string,
-      title: r.title as string,
+      title,
       hero_emoji: r.hero_emoji as string,
       meal_category: r.meal_category as MealCategory,
       food_tags: (r.food_tags ?? []) as string[],
@@ -55,6 +77,7 @@ export async function getMyRecipes(): Promise<RecipeCardData[]> {
       lead_time_min: (r.lead_time_min ?? null) as number | null,
       description: (r.description ?? null) as string | null,
       ingredient_emojis,
+      search_haystack,
     };
   });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Trash2 } from "lucide-react";
+import { ClipboardPaste, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
@@ -11,6 +11,7 @@ import {
   UNITS,
 } from "@/lib/db/recipe-types";
 import { createRecipe, updateRecipe } from "../actions";
+import { BulkIngredientInput } from "./bulk-ingredient-input";
 
 type IngRow = {
   ingredient_id: string;
@@ -90,6 +91,29 @@ export function RecipeForm({
         }))
       : [{ ingredient_id: "", quantity: "", unit: "g", is_optional: false }],
   );
+  const [showBulk, setShowBulk] = useState(false);
+
+  // Append rows parsed from the bulk input. If the first row is the empty
+  // placeholder ("pick an ingredient" with no qty), replace it; otherwise
+  // append onto the existing list.
+  function appendRows(
+    incoming: Array<{ ingredient_id: string; quantity: number; unit: string; is_optional: boolean }>,
+  ) {
+    setRows((prev) => {
+      const isEmptyPlaceholder = (r: IngRow) =>
+        !r.ingredient_id && !r.quantity;
+      const base = prev.length === 1 && isEmptyPlaceholder(prev[0]) ? [] : prev;
+      return [
+        ...base,
+        ...incoming.map((i) => ({
+          ingredient_id: i.ingredient_id,
+          quantity: String(i.quantity),
+          unit: i.unit,
+          is_optional: i.is_optional,
+        })),
+      ];
+    });
+  }
 
   function updateRow(i: number, patch: Partial<IngRow>) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -348,14 +372,26 @@ export function RecipeForm({
             </div>
           ))}
         </div>
-        <button
-          type="button"
-          onClick={addRow}
-          className="btn btn-secondary"
-          style={{ marginTop: 12 }}
-        >
-          <Plus /> Add ingredient
-        </button>
+        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+          <button type="button" onClick={addRow} className="btn btn-secondary">
+            <Plus /> Add ingredient
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowBulk((v) => !v)}
+            className="btn btn-secondary"
+          >
+            <ClipboardPaste size={14} /> {showBulk ? "Close bulk paste" : "Bulk paste"}
+          </button>
+        </div>
+        {showBulk && (
+          <BulkIngredientInput
+            ingredients={ingredients}
+            locale={locale}
+            onAdd={appendRows}
+            onClose={() => setShowBulk(false)}
+          />
+        )}
       </Card>
 
       {/* Instructions */}
