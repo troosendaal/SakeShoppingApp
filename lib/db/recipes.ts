@@ -83,7 +83,21 @@ export async function getRecipeWithIngredients(
   if (error) throw error;
   if (!data) return null;
 
-  const ingredients = ((data.recipe_ingredients ?? []) as RecipeIngredientRow[])
+  // Same array/object inference dance as getMyRecipes — Supabase may type
+  // the nested `ingredient` relation as either shape. Normalise to a single
+  // object before we sort/return.
+  type RawRow = Omit<RecipeIngredientRow, "ingredient"> & {
+    ingredient: IngredientLite | IngredientLite[] | null;
+  };
+  const rawRows = (data.recipe_ingredients ?? []) as unknown as RawRow[];
+  const ingredients: RecipeIngredientRow[] = rawRows
+    .map((r) => ({
+      ...r,
+      ingredient: Array.isArray(r.ingredient)
+        ? (r.ingredient[0] as IngredientLite)
+        : (r.ingredient as IngredientLite),
+    }))
+    .filter((r) => r.ingredient != null)
     .slice()
     .sort((a, b) => a.position - b.position);
 
