@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hearth — Recipe & Shopping App</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=DM+Sans:opsz,wght@9..40,300..700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+  :root{
+    --bg:#F5EFE4; --bg-paper:#FAF5EB; --bg-card:#FFFFFF;
+    --ink:#1F1814; --ink-soft:#6B5D4F;
+    --line:#E5DCC8; --line-soft:#EFE7D6;
+    --terracotta:#C8552C; --terracotta-soft:#F2D9CC;
+    --olive:#4A5D3A; --olive-soft:#DCE3D2;
+    --honey:#D9A441; --honey-soft:#F5E5C2;
+    --rose:#D17A6A; --rose-soft:#F2D5CE;
+    --plum:#8E5A7A; --plum-soft:#E8D5DF;
+    --slate:#5B6B7A; --slate-soft:#D9E0E6;
+    --shadow:0 1px 0 rgba(31,24,20,.04), 0 8px 24px -12px rgba(31,24,20,.12);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
+  body::before{content:"";position:fixed;inset:0;background-image:radial-gradient(circle at 20% 30%, rgba(200,85,44,.04) 0, transparent 40%),radial-gradient(circle at 80% 70%, rgba(74,93,58,.05) 0, transparent 45%);pointer-events:none;z-index:0}
+  .app{max-width:1280px;margin:0 auto;padding:24px 32px 80px;position:relative;z-index:1}
+
+  header.topbar{display:flex;align-items:center;justify-content:space-between;padding-bottom:20px;border-bottom:1px solid var(--line);margin-bottom:8px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand-mark{width:42px;height:42px;border-radius:50%;background:var(--terracotta);display:grid;place-items:center;color:#fff;box-shadow:inset 0 -3px 0 rgba(0,0,0,.12)}
+  .brand-mark svg{width:22px;height:22px}
+  .brand h1{font-family:'Fraunces',serif;font-weight:500;font-size:30px;letter-spacing:-0.02em;margin:0;font-variation-settings:"SOFT" 80}
+  .brand h1 em{font-style:italic;color:var(--terracotta);font-weight:400}
+  .brand small{display:block;font-size:11px;color:var(--ink-soft);letter-spacing:.18em;text-transform:uppercase;margin-top:-2px}
+
+  .topbar-actions{display:flex;gap:8px;align-items:center}
+  .icon-btn{width:40px;height:40px;border:1px solid var(--line);background:var(--bg-paper);border-radius:12px;display:grid;place-items:center;cursor:pointer;color:var(--ink);transition:all .15s ease}
+  .icon-btn:hover{background:#fff;transform:translateY(-1px);box-shadow:var(--shadow)}
+  .icon-btn svg{width:18px;height:18px}
+  .avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--honey),var(--terracotta));display:grid;place-items:center;color:#fff;font-weight:600;font-size:14px;border:2px solid #fff;box-shadow:var(--shadow)}
+
+  .lang-switch{display:flex;background:var(--bg-paper);border:1px solid var(--line);border-radius:10px;padding:3px}
+  .lang-switch button{border:none;background:transparent;padding:5px 10px;border-radius:7px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;letter-spacing:.08em;color:var(--ink-soft);cursor:pointer;text-transform:uppercase}
+  .lang-switch button.active{background:var(--ink);color:var(--bg)}
+
+  nav.tabs{display:flex;gap:4px;padding:14px 0 22px;border-bottom:1px solid var(--line);margin-bottom:32px;overflow-x:auto}
+  .tab{font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 16px;border:none;background:transparent;color:var(--ink-soft);cursor:pointer;border-radius:999px;display:flex;align-items:center;gap:8px;white-space:nowrap;transition:all .15s ease}
+  .tab svg{width:16px;height:16px}
+  .tab:hover{color:var(--ink);background:var(--bg-paper)}
+  .tab.active{background:var(--ink);color:var(--bg)}
+  .tab .badge{background:var(--terracotta);color:#fff;font-size:11px;padding:1px 7px;border-radius:999px;font-weight:600}
+  .tab.active .badge{background:var(--honey);color:var(--ink)}
+
+  .view{display:none}
+  .view.active{display:block}
+
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:24px;gap:24px;flex-wrap:wrap}
+  .page-head h2{font-family:'Fraunces',serif;font-weight:400;font-size:44px;letter-spacing:-0.025em;margin:0;line-height:1}
+  .page-head h2 em{font-style:italic;color:var(--terracotta);font-variation-settings:"SOFT" 100}
+  .page-head p{margin:6px 0 0;color:var(--ink-soft);font-size:14px}
+
+  .search{position:relative;display:flex;align-items:center;background:var(--bg-card);border:1px solid var(--line);border-radius:14px;padding:0 14px;box-shadow:var(--shadow);min-width:280px}
+  .search svg{width:18px;height:18px;color:var(--ink-soft)}
+  .search input{border:none;background:transparent;outline:none;padding:12px 12px;flex:1;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--ink)}
+
+  .btn{font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;padding:11px 18px;border-radius:10px;border:none;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .15s ease}
+  .btn svg{width:16px;height:16px}
+  .btn-primary{background:var(--ink);color:var(--bg)}
+  .btn-primary:hover{background:var(--terracotta)}
+  .btn-secondary{background:var(--bg-card);color:var(--ink);border:1px solid var(--line)}
+  .btn-secondary:hover{border-color:var(--ink)}
+
+  /* ========================
+     MEAL PLAN WEEK VIEW
+     ======================== */
+  .week-toolbar{
+    display:flex;align-items:center;justify-content:space-between;
+    background:var(--bg-card);border:1px solid var(--line);border-radius:14px;
+    padding:10px 14px;margin-bottom:20px;box-shadow:var(--shadow);
+  }
+  .week-nav{display:flex;align-items:center;gap:12px}
+  .week-nav .week-label{font-family:'Fraunces',serif;font-size:20px;font-weight:500}
+  .week-nav .week-label em{font-style:italic;color:var(--terracotta)}
+  .week-nav .week-sub{font-size:12px;color:var(--ink-soft);margin-left:4px}
+  .week-nav-btn{
+    width:34px;height:34px;border:1px solid var(--line);background:var(--bg-paper);
+    border-radius:10px;display:grid;place-items:center;cursor:pointer;color:var(--ink);
+  }
+  .week-nav-btn:hover{background:#fff;border-color:var(--terracotta)}
+  .week-nav-btn svg{width:15px;height:15px}
+  .week-actions{display:flex;gap:8px}
+
+  .week-grid{
+    display:grid;grid-template-columns:repeat(7, 1fr);gap:12px;
+    margin-bottom:24px;
+  }
+  .day{
+    background:var(--bg-card);border:1px solid var(--line);border-radius:14px;
+    min-height:280px;display:flex;flex-direction:column;
+    transition:all .15s ease;
+  }
+  .day.today{border-color:var(--terracotta);box-shadow:0 0 0 3px var(--terracotta-soft)}
+  .day.drag-over{border-color:var(--honey);background:var(--honey-soft)}
+  .day-head{
+    padding:10px 12px;border-bottom:1px solid var(--line-soft);
+    display:flex;align-items:baseline;justify-content:space-between;
+  }
+  .day-head .name{
+    font-family:'Fraunces',serif;font-style:italic;font-weight:400;
+    font-size:14px;color:var(--ink);
+  }
+  .day-head .date{
+    font-family:'Fraunces',serif;font-size:18px;font-weight:500;color:var(--ink);
+  }
+  .day.today .day-head .date{color:var(--terracotta)}
+  .day-body{padding:10px;display:flex;flex-direction:column;gap:8px;flex:1}
+
+  .meal-slot{
+    background:var(--bg);border:1px solid var(--line);border-radius:10px;
+    padding:9px 10px;cursor:grab;position:relative;transition:all .15s ease;
+  }
+  .meal-slot:hover{border-color:var(--terracotta);background:#fff}
+  .meal-slot[data-cat="breakfast"]{background:var(--honey-soft);border-color:rgba(217,164,65,.4)}
+  .meal-slot[data-cat="lunch"]{background:var(--olive-soft);border-color:rgba(74,93,58,.3)}
+  .meal-slot[data-cat="dinner"]{background:var(--terracotta-soft);border-color:rgba(200,85,44,.4)}
+  .meal-slot .slot-type{
+    font-size:9px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--ink-soft);font-weight:600;margin-bottom:2px;
+  }
+  .meal-slot .slot-title{
+    font-size:12px;font-weight:500;line-height:1.25;
+    display:flex;align-items:center;gap:5px;
+  }
+  .meal-slot .slot-emoji{font-size:16px;flex-shrink:0}
+  .meal-slot .slot-servings{
+    font-size:10px;color:var(--ink-soft);margin-top:2px;
+    font-family:'Fraunces',serif;font-style:italic;
+  }
+  .meal-slot .remove{
+    position:absolute;top:4px;right:4px;width:18px;height:18px;
+    border-radius:50%;background:rgba(255,255,255,.7);
+    display:none;align-items:center;justify-content:center;
+    cursor:pointer;color:var(--ink-soft);
+  }
+  .meal-slot:hover .remove{display:flex}
+  .meal-slot .remove svg{width:10px;height:10px}
+
+  .slot-empty{
+    background:transparent;border:1.5px dashed var(--line);border-radius:10px;
+    padding:14px 10px;text-align:center;color:var(--ink-soft);
+    font-size:11px;cursor:pointer;
+  }
+  .slot-empty:hover{border-color:var(--terracotta);color:var(--terracotta)}
+  .slot-empty svg{width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:3px}
+
+  /* Recipe drawer at bottom */
+  .recipe-drawer{
+    background:var(--bg-card);border:1px solid var(--line);border-radius:18px;
+    padding:18px 22px;box-shadow:var(--shadow);margin-bottom:24px;
+  }
+  .drawer-head{
+    display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;
+  }
+  .drawer-head h3{
+    font-family:'Fraunces',serif;font-size:20px;font-weight:500;
+    letter-spacing:-0.01em;margin:0;
+  }
+  .drawer-head h3 em{font-style:italic;color:var(--terracotta)}
+  .drawer-search{
+    display:flex;align-items:center;gap:8px;background:var(--bg);
+    border:1px solid var(--line);border-radius:10px;padding:6px 12px;flex:1;max-width:280px;
+  }
+  .drawer-search input{border:none;background:transparent;outline:none;flex:1;font-size:13px}
+  .drawer-search svg{width:14px;height:14px;color:var(--ink-soft)}
+
+  .recipe-strip{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
+  .recipe-tile{
+    flex-shrink:0;width:160px;background:var(--bg-paper);
+    border:1px solid var(--line);border-radius:12px;padding:12px;cursor:grab;
+    transition:all .15s ease;
+  }
+  .recipe-tile:hover{border-color:var(--terracotta);transform:translateY(-2px);box-shadow:var(--shadow)}
+  .recipe-tile .tile-cat{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--terracotta);font-weight:600;margin-bottom:4px}
+  .recipe-tile .tile-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .recipe-tile .tile-emoji{font-size:30px;line-height:1}
+  .recipe-tile .tile-title{font-family:'Fraunces',serif;font-weight:500;font-size:14px;line-height:1.2}
+  .recipe-tile .tile-meta{font-size:11px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;margin-top:4px}
+
+  /* week summary */
+  .week-summary{
+    display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:24px;
+  }
+  .summary-card{
+    background:var(--bg-card);border:1px solid var(--line);border-radius:14px;
+    padding:16px 18px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow);
+  }
+  .summary-card .em{font-size:30px}
+  .summary-card .info{flex:1}
+  .summary-card .val{font-family:'Fraunces',serif;font-size:22px;font-weight:500;line-height:1}
+  .summary-card .lbl{font-size:11px;color:var(--ink-soft);letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
+  .summary-card.cta{background:var(--ink);color:var(--bg);border:none;cursor:pointer}
+  .summary-card.cta .val{color:var(--honey)}
+  .summary-card.cta .lbl{color:rgba(255,255,255,.6)}
+
+  /* ========================
+     SHOPPING LIST + bulk paste, notes, urgent, inline qty
+     ======================== */
+  .quick-add{
+    background:var(--bg-card);border:1px solid var(--line);border-radius:14px;
+    padding:14px 18px;margin-bottom:20px;box-shadow:var(--shadow);
+  }
+  .quick-add-row{display:flex;gap:8px;align-items:center}
+  .quick-add input,.quick-add textarea{
+    flex:1;border:none;background:var(--bg-paper);outline:none;
+    padding:10px 14px;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;
+    resize:vertical;
+  }
+  .quick-add textarea{display:none;min-height:80px;line-height:1.5}
+  .quick-add.bulk textarea{display:block}
+  .quick-add.bulk input{display:none}
+  .qa-mode-toggle{
+    display:flex;background:var(--bg-paper);border:1px solid var(--line);border-radius:8px;
+    padding:2px;
+  }
+  .qa-mode-toggle button{
+    border:none;background:transparent;padding:5px 10px;font-size:11px;font-weight:600;
+    letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:6px;color:var(--ink-soft);
+  }
+  .qa-mode-toggle button.active{background:var(--ink);color:var(--bg)}
+  .quick-add-hint{font-size:11px;color:var(--ink-soft);margin-top:8px;font-style:italic;display:none}
+  .quick-add.bulk .quick-add-hint{display:block}
+
+  .list-main{background:var(--bg-card);border:1px solid var(--line);border-radius:20px;padding:8px 0;box-shadow:var(--shadow);margin-bottom:24px}
+  .list-group{padding:8px 28px}
+  .list-group + .list-group{border-top:1px solid var(--line)}
+  .group-head{display:flex;align-items:center;justify-content:space-between;padding:14px 0 8px}
+  .group-head h4{font-family:'Fraunces',serif;font-style:italic;font-weight:400;font-size:18px;margin:0;color:var(--ink);display:flex;align-items:center;gap:10px}
+  .group-head h4 .em{font-style:normal;font-size:18px}
+  .group-head h4 .count{font-style:normal;font-family:'DM Sans',sans-serif;font-size:11px;color:var(--ink-soft);background:var(--bg);padding:2px 8px;border-radius:999px}
+
+  .list-item{
+    display:flex;align-items:flex-start;gap:14px;padding:12px 0;
+    border-bottom:1px dashed var(--line-soft);position:relative;
+  }
+  .list-item:last-child{border-bottom:none}
+  .list-item.urgent{background:linear-gradient(90deg, rgba(200,85,44,.06), transparent 60%);padding-left:8px;border-radius:8px;margin:0 -8px}
+  .list-item.urgent::before{
+    content:"";position:absolute;left:0;top:8px;bottom:8px;width:3px;
+    background:var(--terracotta);border-radius:2px;
+  }
+
+  .check{width:22px;height:22px;border:1.5px solid var(--ink-soft);border-radius:6px;background:#fff;cursor:pointer;display:grid;place-items:center;flex-shrink:0;margin-top:2px}
+  .check svg{width:14px;height:14px;color:#fff;opacity:0}
+  .list-item.done .check{background:var(--olive);border-color:var(--olive)}
+  .list-item.done .check svg{opacity:1}
+  .list-item.done .item-name,.list-item.done .qty-display{text-decoration:line-through;color:var(--ink-soft)}
+  .item-icon{font-size:20px;width:28px;text-align:center;margin-top:1px;flex-shrink:0}
+
+  .item-main{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
+  .item-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .item-name{font-size:15px;color:var(--ink)}
+  .item-source{font-size:11px;color:var(--ink-soft);background:var(--bg);padding:2px 7px;border-radius:6px}
+  .item-source.merged{background:var(--honey-soft);color:#7a5b1a;font-weight:500}
+  .urgent-flag{
+    display:inline-flex;align-items:center;gap:3px;background:var(--terracotta);
+    color:#fff;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+    padding:2px 7px;border-radius:5px;
+  }
+  .urgent-flag svg{width:9px;height:9px}
+  .note{
+    font-size:12px;color:var(--ink-soft);font-style:italic;
+    display:flex;align-items:center;gap:5px;
+  }
+  .note svg{width:11px;height:11px;flex-shrink:0}
+  .note-add{
+    font-size:11px;color:var(--ink-soft);background:transparent;border:1px dashed var(--line);
+    padding:2px 8px;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:3px;
+    align-self:flex-start;
+  }
+  .note-add svg{width:10px;height:10px}
+  .note-add:hover{border-color:var(--terracotta);color:var(--terracotta)}
+
+  /* inline quantity editor */
+  .qty-cell{display:flex;align-items:center;gap:6px;margin-top:1px;flex-shrink:0}
+  .qty-stepper{display:flex;align-items:center;background:#fff;border:1px solid var(--line);border-radius:999px;padding:2px}
+  .qty-stepper button{width:24px;height:24px;border:none;background:transparent;border-radius:50%;cursor:pointer;color:var(--ink);font-size:14px;display:grid;place-items:center}
+  .qty-stepper button:hover{background:var(--bg)}
+  .qty-stepper .num{min-width:36px;text-align:center;font-family:'Fraunces',serif;font-size:14px;font-weight:500}
+  .qty-display{font-family:'Fraunces',serif;font-size:15px;color:var(--ink);min-width:70px;text-align:right;cursor:pointer}
+  .qty-display .unit{font-size:11px;color:var(--ink-soft);font-style:italic;margin-left:2px}
+  .qty-display:hover{color:var(--terracotta)}
+
+  /* ========================
+     HISTORY VIEW
+     ======================== */
+  .history-list{display:flex;flex-direction:column;gap:12px}
+  .history-card{
+    background:var(--bg-card);border:1px solid var(--line);border-radius:14px;
+    padding:16px 22px;display:flex;align-items:center;gap:20px;
+    box-shadow:var(--shadow);
+  }
+  .history-card .date-block{
+    text-align:center;flex-shrink:0;width:60px;
+    border-right:1px solid var(--line);padding-right:18px;
+  }
+  .history-card .date-block .month{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft);font-weight:600}
+  .history-card .date-block .day{font-family:'Fraunces',serif;font-size:28px;font-weight:500;line-height:1;color:var(--ink);margin-top:2px}
+  .history-card .info{flex:1}
+  .history-card .info h5{font-family:'Fraunces',serif;font-size:17px;font-weight:500;margin:0 0 4px}
+  .history-card .info p{margin:0;font-size:12px;color:var(--ink-soft)}
+  .history-card .stats{display:flex;gap:18px;font-size:12px;color:var(--ink-soft)}
+  .history-card .stats b{display:block;font-family:'Fraunces',serif;font-size:18px;font-weight:500;color:var(--ink);line-height:1}
+  .history-card .actions{display:flex;gap:6px}
+
+  @media (max-width:1100px){
+    .week-grid{grid-template-columns:repeat(2, 1fr)}
+    .week-summary{grid-template-columns:1fr}
+  }
+  @media (max-width:600px){
+    .week-grid{grid-template-columns:1fr}
+    .app{padding:16px 16px 60px}
+    .page-head h2{font-size:32px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark"><i data-lucide="flame"></i></div>
+      <div>
+        <h1>hearth<em>.</em></h1>
+        <small>recipes · pantry · shared lists</small>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <div class="lang-switch">
+        <button class="active">EN</button>
+        <button>NL</button>
+        <button>FR</button>
+      </div>
+      <button class="icon-btn"><i data-lucide="settings"></i></button>
+      <div class="avatar">MV</div>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab" data-view="recipes"><i data-lucide="book-open"></i> Recipes</button>
+    <button class="tab active" data-view="plan"><i data-lucide="calendar-days"></i> Meal plan</button>
+    <button class="tab" data-view="list"><i data-lucide="shopping-basket"></i> Shopping list <span class="badge">14</span></button>
+    <button class="tab" data-view="history"><i data-lucide="history"></i> History</button>
+    <button class="tab" data-view="shared"><i data-lucide="users"></i> Shared</button>
+  </nav>
+
+  <!-- ===== MEAL PLAN VIEW ===== -->
+  <section class="view active" id="view-plan">
+
+    <div class="page-head">
+      <div>
+        <h2>Meal <em>plan.</em></h2>
+        <p>Drag a recipe onto a day. Tap "Build shopping list" to combine everything you've planned.</p>
+      </div>
+    </div>
+
+    <!-- week navigator -->
+    <div class="week-toolbar">
+      <div class="week-nav">
+        <button class="week-nav-btn"><i data-lucide="chevron-left"></i></button>
+        <div>
+          <span class="week-label">Week 21 · <em>May 18 – 24</em></span>
+          <span class="week-sub">· this week</span>
+        </div>
+        <button class="week-nav-btn"><i data-lucide="chevron-right"></i></button>
+        <button class="week-nav-btn" title="Today"><i data-lucide="calendar"></i></button>
+      </div>
+      <div class="week-actions">
+        <button class="btn btn-secondary"><i data-lucide="copy"></i> Copy last week</button>
+        <button class="btn btn-primary"><i data-lucide="shopping-basket"></i> Build shopping list</button>
+      </div>
+    </div>
+
+    <!-- summary -->
+    <div class="week-summary">
+      <div class="summary-card">
+        <div class="em">🍽️</div>
+        <div class="info"><div class="val">9</div><div class="lbl">Meals planned</div></div>
+      </div>
+      <div class="summary-card">
+        <div class="em">🛒</div>
+        <div class="info"><div class="val">38</div><div class="lbl">Items to buy</div></div>
+      </div>
+      <div class="summary-card cta">
+        <div class="em">⚡</div>
+        <div class="info"><div class="val">5 days</div><div class="lbl">Until next shop</div></div>
+      </div>
+    </div>
+
+    <!-- the week grid -->
+    <div class="week-grid">
+
+      <div class="day">
+        <div class="day-head"><span class="name">Mon</span><span class="date">18</span></div>
+        <div class="day-body">
+          <div class="meal-slot" data-cat="breakfast">
+            <div class="slot-type">Breakfast</div>
+            <div class="slot-title"><span class="slot-emoji">🥐</span> Croissants & coffee</div>
+            <div class="slot-servings">2 servings</div>
+            <div class="remove"><i data-lucide="x"></i></div>
+          </div>
+          <div class="meal-slot" data-cat="dinner">
+            <div class="slot-type">Dinner</div>
+            <div class="slot-title"><span class="slot-emoji">🍝</span> Pasta al limone</div>
+            <div class="slot-servings">4 servings</div>
+            <div class="remove"><i data-lucide="x"></i></div>
+          </div>
+          <div class="slot-empty"><i data-lucide="plus"></i> add meal</div>
+        </div>
+      </div>
+
+      <div class="day today">
+        <div class="day-head"><span class="name">Tue · today</span><span class="date">19</span></div>
+        <div class="day-body">
+          <div class="meal-slot" data-cat="breakfast">
+            <div class="slot-type">Breakfast</div>
+            <div class="slot-title"><span class="slot-emoji">🥚</span> Shakshuka</div>
+            <div class="slot-servings">2 servings</div>
+            <div class="remove"><i data-lucide="x"></i></div>
+          </div>
+          <div class="meal-slot" data-cat="lunch">
+            <div class="slot-type">Lunch</div>
+            <div class="slot-title"><span class="slot-emoji">🥗</span> Aubergine bowls</div>
+            <div class="slot-servings">2 servings</div>
+            <div class="remove"><i data-lucide="x"></i></div>
+          </div>
+          <div class="meal-slot" data-cat="dinner">
+            <div class="slot-type">Dinner</div>
+            <div class="slot-title"><span class="slot-emoji">🍗</span> Thai green curry</div>
+            <div class="slot-servings">4 servings</div>
+            <div class="remove"><i data-lucide="x"></i></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="day">
+        <div class="day-head"><span class="name">Wed</span><span class="date">20</span></div>
+        <div class="day-body">
+          <div class="meal-slot" data-cat="dinner">
+            <div class="slot-type">Dinner</div>
+            <div class="slot-title"><span class="slot-emoji">🍚</span> Mushroom risotto</div>
+            <div class="slot-servings">4 servings</div>
+            <div class="remove"><i data-lucide="x"></i></div>
+          </div>
+          <div class="slot-empty"><i data-lucide="plus"></i> add meal</div>
+        </div>
+      </div>
+
+      <div class="day">
+        <div class="day-head"><span class="name">Thu</span><span class="date">21</span></div>
+        <div class="day-body">
+          <div class="meal-slot" data-cat="dinner">
+            <div class="slot-type">Dinner</div>
+            <div class="slot-title"><span class="slot-emoji">🐟</span> Salmon, broccoli</div>
+            <div class="slot-servings">2 servings</div>
+            <div class="remove"><i data-lucide="x"></i></div>
+          </div>
+          <div class="slot-empty"><i data-lucide="plus"></i> add meal</div>
+        </div>
+      </div>
+
+      <div class="day">
+        <div class="day-head"><span class="name">Fri</span><span class="date">22</span></div>
+        <div class="day-body">
+          <div class="meal-slot" data-cat="dinner">
+            <div class="slot-type">Dinner</div>
+            <div class="slot-title"><span class="slot-emoji">🍕</span> Pizza night</div>
+            <div class="slot-servings">4 servings</div>
+            <div class="remove"><i data-lucide="x"></i></div>
+          </div>
+          <div class="slot-empty"><i data-lucide="plus"></i> add meal</div>
+        </div>
+      </div>
+
+      <div class="day">
+        <div class="day-head"><span class="name">Sat</span><span class="date">23</span></div>
+        <div class="day-body">
+          <div class="slot-empty"><i data-lucide="plus"></i> breakfast</div>
+          <div class="slot-empty"><i data-lucide="plus"></i> lunch</div>
+          <div class="slot-empty"><i data-lucide="plus"></i> dinner</div>
+        </div>
+      </div>
+
+      <div class="day">
+        <div class="day-head"><span class="name">Sun</span><span class="date">24</span></div>
+        <div class="day-body">
+          <div class="meal-slot" data-cat="lunch">
+            <div class="slot-type">Lunch</div>
+            <div class="slot-title"><span class="slot-emoji">🍰</span> Olive oil cake</div>
+            <div class="slot-servings">8 servings</div>
+            <div class="remove"><i data-lucide="x"></i></div>
+          </div>
+          <div class="slot-empty"><i data-lucide="plus"></i> add meal</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- recipe drawer -->
+    <div class="recipe-drawer">
+      <div class="drawer-head">
+        <h3>Drag from <em>recipes.</em></h3>
+        <div class="drawer-search">
+          <i data-lucide="search"></i>
+          <input placeholder="Search to filter…" />
+        </div>
+      </div>
+      <div class="recipe-strip">
+        <div class="recipe-tile"><div class="tile-cat">Dinner</div><div class="tile-row"><div class="tile-emoji">🍝</div><div class="tile-title">Pasta al limone</div></div><div class="tile-meta"><i data-lucide="clock"></i> 35 min · 4 srv</div></div>
+        <div class="recipe-tile"><div class="tile-cat">Breakfast</div><div class="tile-row"><div class="tile-emoji">🥚</div><div class="tile-title">Shakshuka</div></div><div class="tile-meta"><i data-lucide="clock"></i> 25 min · 4 srv</div></div>
+        <div class="recipe-tile"><div class="tile-cat">Dinner</div><div class="tile-row"><div class="tile-emoji">🍚</div><div class="tile-title">Mushroom risotto</div></div><div class="tile-meta"><i data-lucide="clock"></i> 1 h 10 · 4 srv</div></div>
+        <div class="recipe-tile"><div class="tile-cat">Lunch</div><div class="tile-row"><div class="tile-emoji">🥗</div><div class="tile-title">Aubergine bowls</div></div><div class="tile-meta"><i data-lucide="clock"></i> 45 min · 4 srv</div></div>
+        <div class="recipe-tile"><div class="tile-cat">Dinner</div><div class="tile-row"><div class="tile-emoji">🍗</div><div class="tile-title">Thai green curry</div></div><div class="tile-meta"><i data-lucide="clock"></i> 50 min · 4 srv</div></div>
+        <div class="recipe-tile"><div class="tile-cat">Dessert</div><div class="tile-row"><div class="tile-emoji">🍰</div><div class="tile-title">Olive oil cake</div></div><div class="tile-meta"><i data-lucide="clock"></i> 1 h 30 · 8 srv</div></div>
+        <div class="recipe-tile"><div class="tile-cat">Sweets</div><div class="tile-row"><div class="tile-emoji">🍪</div><div class="tile-title">Brown butter cookies</div></div><div class="tile-meta"><i data-lucide="clock"></i> 40 min · 12 srv</div></div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ===== SHOPPING LIST ===== -->
+  <section class="view" id="view-list">
+    <div class="page-head">
+      <div>
+        <h2>This week's <em>list.</em></h2>
+        <p>Auto-built from your meal plan · sorted by your category order</p>
+      </div>
+    </div>
+
+    <!-- bulk paste + single quick-add -->
+    <div class="quick-add">
+      <div class="quick-add-row">
+        <input placeholder="Add an item…" />
+        <textarea placeholder="Paste multiple items, one per line or comma-separated:&#10;2 avocados&#10;milk&#10;6 eggs, toilet paper, sourdough"></textarea>
+        <div class="qa-mode-toggle">
+          <button class="active" onclick="setMode('single', this)">Single</button>
+          <button onclick="setMode('bulk', this)">Bulk paste</button>
+        </div>
+        <button class="btn btn-primary"><i data-lucide="plus"></i> Add</button>
+      </div>
+      <div class="quick-add-hint">✨ Hearth will parse each line, match ingredients in any language, and merge with what's already on your list.</div>
+    </div>
+
+    <div class="list-main">
+
+      <div class="list-group">
+        <div class="group-head"><h4><span class="em">🥬</span> Fruit & Vegetables <span class="count">3</span></h4></div>
+
+        <div class="list-item urgent">
+          <div class="check"><i data-lucide="check"></i></div>
+          <div class="item-icon">🍋</div>
+          <div class="item-main">
+            <div class="item-row">
+              <span class="item-name">Lemons</span>
+              <span class="urgent-flag"><i data-lucide="alert-circle"></i> Urgent</span>
+              <span class="item-source">Pasta al limone</span>
+            </div>
+            <div class="note"><i data-lucide="message-square"></i> Get the unwaxed ones if available</div>
+          </div>
+          <div class="qty-cell">
+            <div class="qty-stepper">
+              <button>−</button>
+              <span class="num">3</span>
+              <button>+</button>
+            </div>
+            <span style="font-size:11px;color:var(--ink-soft);font-style:italic">whole</span>
+          </div>
+        </div>
+
+        <div class="list-item">
+          <div class="check"><i data-lucide="check"></i></div>
+          <div class="item-icon">🧅</div>
+          <div class="item-main">
+            <div class="item-row">
+              <span class="item-name">Onions</span>
+              <span class="item-source merged">3 recipes · EN+NL+FR</span>
+            </div>
+            <button class="note-add"><i data-lucide="plus"></i> add note</button>
+          </div>
+          <div class="qty-cell">
+            <span class="qty-display">5 <span class="unit">whole</span></span>
+          </div>
+        </div>
+
+        <div class="list-item done">
+          <div class="check"><i data-lucide="check"></i></div>
+          <div class="item-icon">🥕</div>
+          <div class="item-main">
+            <div class="item-row">
+              <span class="item-name">Carrots</span>
+              <span class="item-source">Thai curry</span>
+            </div>
+          </div>
+          <div class="qty-cell">
+            <span class="qty-display">3 <span class="unit">whole</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="list-group">
+        <div class="group-head"><h4><span class="em">🥛</span> Dairy <span class="count">2</span></h4></div>
+        <div class="list-item">
+          <div class="check"><i data-lucide="check"></i></div>
+          <div class="item-icon">🧀</div>
+          <div class="item-main">
+            <div class="item-row">
+              <span class="item-name">Parmesan</span>
+              <span class="item-source">Pasta + risotto</span>
+            </div>
+            <div class="note"><i data-lucide="message-square"></i> Reggiano if they have it, otherwise grana padano</div>
+          </div>
+          <div class="qty-cell">
+            <span class="qty-display">200 <span class="unit">g</span></span>
+          </div>
+        </div>
+        <div class="list-item urgent">
+          <div class="check"><i data-lucide="check"></i></div>
+          <div class="item-icon">🥚</div>
+          <div class="item-main">
+            <div class="item-row">
+              <span class="item-name">Eggs</span>
+              <span class="urgent-flag"><i data-lucide="alert-circle"></i> Urgent</span>
+            </div>
+            <button class="note-add"><i data-lucide="plus"></i> add note</button>
+          </div>
+          <div class="qty-cell">
+            <div class="qty-stepper">
+              <button>−</button>
+              <span class="num">8</span>
+              <button>+</button>
+            </div>
+            <span style="font-size:11px;color:var(--ink-soft);font-style:italic">whole</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="list-group">
+        <div class="group-head"><h4><span class="em">🧼</span> Household <span class="count">1</span></h4></div>
+        <div class="list-item">
+          <div class="check"><i data-lucide="check"></i></div>
+          <div class="item-icon">🧻</div>
+          <div class="item-main">
+            <div class="item-row">
+              <span class="item-name">Toilet paper</span>
+              <span class="item-source">ad-hoc</span>
+            </div>
+            <div class="note"><i data-lucide="message-square"></i> The recycled brand we usually buy</div>
+          </div>
+          <div class="qty-cell">
+            <span class="qty-display">1 <span class="unit">pack</span></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== HISTORY VIEW ===== -->
+  <section class="view" id="view-history">
+    <div class="page-head">
+      <div>
+        <h2>List <em>history.</em></h2>
+        <p>Past shopping lists · tap to view, restore, or duplicate</p>
+      </div>
+      <div class="search">
+        <i data-lucide="search"></i>
+        <input placeholder="Search past lists or items…" />
+      </div>
+    </div>
+
+    <div class="history-list">
+      <div class="history-card">
+        <div class="date-block"><div class="month">May</div><div class="day">11</div></div>
+        <div class="info">
+          <h5>Week 20 list</h5>
+          <p>5 recipes · 32 items · completed Sunday at 6:43 pm</p>
+        </div>
+        <div class="stats">
+          <div><b>32</b> bought</div>
+          <div><b>2</b> skipped</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-secondary"><i data-lucide="copy"></i> Duplicate</button>
+          <button class="btn btn-secondary"><i data-lucide="eye"></i></button>
+        </div>
+      </div>
+
+      <div class="history-card">
+        <div class="date-block"><div class="month">May</div><div class="day">04</div></div>
+        <div class="info">
+          <h5>Week 19 list</h5>
+          <p>4 recipes · 28 items · completed Saturday at 11:22 am</p>
+        </div>
+        <div class="stats">
+          <div><b>28</b> bought</div>
+          <div><b>0</b> skipped</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-secondary"><i data-lucide="copy"></i> Duplicate</button>
+          <button class="btn btn-secondary"><i data-lucide="eye"></i></button>
+        </div>
+      </div>
+
+      <div class="history-card">
+        <div class="date-block"><div class="month">Apr</div><div class="day">27</div></div>
+        <div class="info">
+          <h5>Birthday weekend shop</h5>
+          <p>2 recipes + party supplies · 41 items · completed Friday at 4:10 pm</p>
+        </div>
+        <div class="stats">
+          <div><b>39</b> bought</div>
+          <div><b>2</b> skipped</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-secondary"><i data-lucide="copy"></i> Duplicate</button>
+          <button class="btn btn-secondary"><i data-lucide="eye"></i></button>
+        </div>
+      </div>
+
+      <div class="history-card">
+        <div class="date-block"><div class="month">Apr</div><div class="day">20</div></div>
+        <div class="info">
+          <h5>Week 17 list</h5>
+          <p>6 recipes · 35 items · completed Sunday at 5:15 pm</p>
+        </div>
+        <div class="stats">
+          <div><b>34</b> bought</div>
+          <div><b>1</b> skipped</div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-secondary"><i data-lucide="copy"></i> Duplicate</button>
+          <button class="btn btn-secondary"><i data-lucide="eye"></i></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  lucide.createIcons();
+  document.querySelectorAll('.tab').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const v = btn.dataset.view;
+      document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));
+      btn.classList.add('active');
+      const el = document.getElementById('view-'+v);
+      if(el) el.classList.add('active');
+      window.scrollTo({top:0,behavior:'smooth'});
+    });
+  });
+  document.querySelectorAll('.lang-switch button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('.lang-switch button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+    });
+  });
+  document.querySelectorAll('.check').forEach(c=>{
+    c.addEventListener('click',()=>c.closest('.list-item').classList.toggle('done'));
+  });
+  document.querySelectorAll('.qty-stepper').forEach(stp=>{
+    const num = stp.querySelector('.num');
+    const btns = stp.querySelectorAll('button');
+    btns[0].addEventListener('click',()=>{
+      const v = Math.max(0, parseInt(num.textContent)-1);
+      num.textContent = v;
+    });
+    btns[1].addEventListener('click',()=>{
+      num.textContent = parseInt(num.textContent)+1;
+    });
+  });
+  function setMode(mode, btn){
+    document.querySelectorAll('.qa-mode-toggle button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const qa = document.querySelector('.quick-add');
+    if(mode==='bulk') qa.classList.add('bulk'); else qa.classList.remove('bulk');
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+{
+  "brand": {
+    "wordmark": "saké",
+    "tagline": "recepten · voorraad · gedeelde lijsten"
+  },
+  "nav": {
+    "recipes": "Recepten",
+    "plan": "Weekmenu",
+    "list": "Boodschappen",
+    "history": "Geschiedenis",
+    "shared": "Gedeeld"
+  },
+  "pages": {
+    "recipes": {
+      "title": "Jouw",
+      "titleEm": "recepten.",
+      "subtitle": "Bladeren, filteren op maaltijd of tag, zoeken in alle drie de talen."
+    },
+    "plan": {
+      "title": "Week",
+      "titleEm": "menu.",
+      "subtitle": "Sleep een recept naar een dag. Tik op \"Boodschappenlijst maken\" om alles te combineren."
+    },
+    "list": {
+      "title": "Deze week's",
+      "titleEm": "lijst.",
+      "subtitle": "Automatisch opgebouwd uit je weekmenu · gesorteerd op jouw categorie-volgorde"
+    },
+    "history": {
+      "title": "Lijst",
+      "titleEm": "geschiedenis.",
+      "subtitle": "Eerdere boodschappenlijsten · tik om te bekijken of dupliceren"
+    },
+    "shared": {
+      "title": "Gedeeld met",
+      "titleEm": "jou.",
+      "subtitle": "Lijsten waarvoor je uitgenodigd bent."
+    }
+  },
+  "common": {
+    "search": "Zoeken…",
+    "add": "Toevoegen",
+    "today": "vandaag",
+    "copyLastWeek": "Vorige week kopiëren",
+    "buildShoppingList": "Boodschappenlijst maken",
+    "duplicate": "Dupliceren",
+    "view": "Bekijk",
+    "addMeal": "maaltijd",
+    "single": "Enkel",
+    "bulkPaste": "Bulk plakken",
+    "addNote": "notitie",
+    "urgent": "Dringend",
+    "configureSupabase": "Verbind Supabase om auth, recepten en lijsten te activeren. Zie README.md."
+  }
+}

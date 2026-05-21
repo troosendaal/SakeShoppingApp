@@ -1,0 +1,55 @@
+{
+  "brand": {
+    "wordmark": "saké",
+    "tagline": "recipes · pantry · shared lists"
+  },
+  "nav": {
+    "recipes": "Recipes",
+    "plan": "Meal plan",
+    "list": "Shopping list",
+    "history": "History",
+    "shared": "Shared"
+  },
+  "pages": {
+    "recipes": {
+      "title": "Your",
+      "titleEm": "recipes.",
+      "subtitle": "Browse, filter by meal or tag, and search across all three languages."
+    },
+    "plan": {
+      "title": "Meal",
+      "titleEm": "plan.",
+      "subtitle": "Drag a recipe onto a day. Tap \"Build shopping list\" to combine everything you've planned."
+    },
+    "list": {
+      "title": "This week's",
+      "titleEm": "list.",
+      "subtitle": "Auto-built from your meal plan · sorted by your category order"
+    },
+    "history": {
+      "title": "List",
+      "titleEm": "history.",
+      "subtitle": "Past shopping lists · tap to view, restore, or duplicate"
+    },
+    "shared": {
+      "title": "Shared with",
+      "titleEm": "you.",
+      "subtitle": "Lists collaborators have invited you to."
+    }
+  },
+  "common": {
+    "search": "Search…",
+    "add": "Add",
+    "today": "today",
+    "copyLastWeek": "Copy last week",
+    "buildShoppingList": "Build shopping list",
+    "duplicate": "Duplicate",
+    "view": "View",
+    "addMeal": "add meal",
+    "single": "Single",
+    "bulkPaste": "Bulk paste",
+    "addNote": "add note",
+    "urgent": "Urgent",
+    "configureSupabase": "Connect Supabase to enable auth, recipes and shopping lists. See README.md for setup."
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "brand": {
+    "wordmark": "saké",
+    "tagline": "recettes · garde-manger · listes partagées"
+  },
+  "nav": {
+    "recipes": "Recettes",
+    "plan": "Menu",
+    "list": "Courses",
+    "history": "Historique",
+    "shared": "Partagé"
+  },
+  "pages": {
+    "recipes": {
+      "title": "Vos",
+      "titleEm": "recettes.",
+      "subtitle": "Parcourir, filtrer par repas ou tag, chercher dans les trois langues."
+    },
+    "plan": {
+      "title": "Menu de la",
+      "titleEm": "semaine.",
+      "subtitle": "Glissez une recette sur un jour. Cliquez \"Créer la liste\" pour tout combiner."
+    },
+    "list": {
+      "title": "La liste de la",
+      "titleEm": "semaine.",
+      "subtitle": "Générée depuis votre menu · triée selon votre ordre de catégories"
+    },
+    "history": {
+      "title": "Historique des",
+      "titleEm": "listes.",
+      "subtitle": "Listes précédentes · cliquez pour voir ou dupliquer"
+    },
+    "shared": {
+      "title": "Partagé avec",
+      "titleEm": "vous.",
+      "subtitle": "Listes auxquelles vous avez été invité·e."
+    }
+  },
+  "common": {
+    "search": "Rechercher…",
+    "add": "Ajouter",
+    "today": "aujourd'hui",
+    "copyLastWeek": "Copier la semaine",
+    "buildShoppingList": "Créer la liste",
+    "duplicate": "Dupliquer",
+    "view": "Voir",
+    "addMeal": "repas",
+    "single": "Simple",
+    "bulkPaste": "Coller en lot",
+    "addNote": "note",
+    "urgent": "Urgent",
+    "configureSupabase": "Connectez Supabase pour activer auth, recettes et listes. Voir README.md."
+  }
+}
