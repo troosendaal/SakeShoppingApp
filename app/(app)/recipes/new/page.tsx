@@ -2,7 +2,8 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { getLocale } from "next-intl/server";
 import { isSupabaseConfigured } from "@/components/configure-banner";
-import { listIngredients, type Locale } from "@/lib/db/recipes";
+import { listIngredients } from "@/lib/db/recipes";
+import type { Locale } from "@/lib/db/recipe-types";
 import { RecipeForm } from "./recipe-form";
 
 export default async function NewRecipePage() {

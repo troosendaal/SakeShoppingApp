@@ -3,11 +3,8 @@ import { notFound } from "next/navigation";
 import { ChevronLeft, Clock, ExternalLink, Hourglass, Users } from "lucide-react";
 import { getLocale } from "next-intl/server";
 import { isSupabaseConfigured } from "@/components/configure-banner";
-import {
-  getRecipeWithIngredients,
-  ingredientName,
-  type Locale,
-} from "@/lib/db/recipes";
+import { getRecipeWithIngredients } from "@/lib/db/recipes";
+import { ingredientName, type Locale } from "@/lib/db/recipe-types";
 import { ServingsStepper } from "./servings-stepper";
 
 const CATEGORY_GRADIENT: Record<string, string> = {

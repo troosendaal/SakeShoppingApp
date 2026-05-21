@@ -9,7 +9,7 @@ import {
   ingredientName,
   MEAL_CATEGORIES,
   UNITS,
-} from "@/lib/db/recipes";
+} from "@/lib/db/recipe-types";
 import { createRecipe } from "../actions";
 
 type IngRow = {
