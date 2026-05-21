@@ -62,6 +62,7 @@ export function ListLine({
   const [qtyDraft, setQtyDraft] = useState(qtyValue);
   const [unitDraft, setUnitDraft] = useState(unitDisplay);
   const qtyRef = useRef<HTMLDivElement | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Optimistic local mirrors so the UI feels snappy.
   const [localChecked, setLocalChecked] = useState(isChecked);
@@ -148,15 +149,40 @@ export function ListLine({
     setUnitDraft(unitDisplay);
     setQtyOpen(true);
   }
-  function saveQty() {
+  // Schedule a save with a tiny debounce so rapid +/- taps coalesce into
+  // one server call instead of spamming the API.
+  function scheduleSave(qty: number, unit: string) {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      if (!Number.isFinite(qty) || qty <= 0) return;
+      startTransition(() => {
+        void setLineQuantity(ingredientId, qty, unit);
+      });
+    }, 350);
+  }
+  function bumpQty(delta: number) {
+    const next = Math.max(0.1, +(qtyDraft + delta).toFixed(2));
+    setQtyDraft(next);
+    scheduleSave(next, unitDraft);
+  }
+  function commitInputQty() {
     if (!Number.isFinite(qtyDraft) || qtyDraft <= 0) return;
-    setQtyOpen(false);
+    // User finished typing — save immediately, don't wait on the debounce.
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     startTransition(() => {
       void setLineQuantity(ingredientId, qtyDraft, unitDraft);
     });
   }
+  function changeUnit(unit: string) {
+    setUnitDraft(unit);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    startTransition(() => {
+      void setLineQuantity(ingredientId, qtyDraft, unit);
+    });
+  }
   function resetQty() {
     setQtyOpen(false);
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     startTransition(() => {
       void clearLineQuantityOverride(ingredientId);
     });
@@ -340,7 +366,7 @@ export function ListLine({
               <div className="qty-stepper">
                 <button
                   type="button"
-                  onClick={() => setQtyDraft((q) => Math.max(0.1, +(q - 1).toFixed(2)))}
+                  onClick={() => bumpQty(-1)}
                   aria-label="Decrease"
                 >
                   <Minus size={12} />
@@ -351,8 +377,12 @@ export function ListLine({
                   min="0"
                   value={qtyDraft}
                   onChange={(e) => setQtyDraft(Number(e.target.value))}
+                  onBlur={commitInputQty}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") saveQty();
+                    if (e.key === "Enter") {
+                      commitInputQty();
+                      setQtyOpen(false);
+                    }
                     if (e.key === "Escape") setQtyOpen(false);
                   }}
                   style={{
@@ -368,7 +398,7 @@ export function ListLine({
                 />
                 <button
                   type="button"
-                  onClick={() => setQtyDraft((q) => +(q + 1).toFixed(2))}
+                  onClick={() => bumpQty(1)}
                   aria-label="Increase"
                 >
                   <Plus size={12} />
@@ -376,7 +406,7 @@ export function ListLine({
               </div>
               <select
                 value={unitDraft}
-                onChange={(e) => setUnitDraft(e.target.value)}
+                onChange={(e) => changeUnit(e.target.value)}
                 style={{
                   flex: 1,
                   border: "1px solid var(--line)",
@@ -422,41 +452,34 @@ export function ListLine({
                   <RotateCcw size={12} /> Reset to auto
                 </button>
               ) : (
-                <span />
-              )}
-              <div style={{ display: "flex", gap: 6 }}>
-                <button
-                  type="button"
-                  onClick={() => setQtyOpen(false)}
+                <span
                   style={{
-                    border: "1px solid var(--line)",
-                    background: "transparent",
+                    fontSize: 11,
                     color: "var(--ink-soft)",
-                    padding: "5px 10px",
-                    fontSize: 12,
-                    borderRadius: 6,
-                    cursor: "pointer",
+                    fontStyle: "italic",
                   }}
                 >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={saveQty}
-                  style={{
-                    border: "none",
-                    background: "var(--ink)",
-                    color: "var(--bg)",
-                    padding: "5px 12px",
-                    fontSize: 12,
-                    fontWeight: 500,
-                    borderRadius: 6,
-                    cursor: "pointer",
-                  }}
-                >
-                  Save
-                </button>
-              </div>
+                  Changes save automatically.
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  commitInputQty();
+                  setQtyOpen(false);
+                }}
+                style={{
+                  border: "1px solid var(--line)",
+                  background: "transparent",
+                  color: "var(--ink-soft)",
+                  padding: "5px 10px",
+                  fontSize: 12,
+                  borderRadius: 6,
+                  cursor: "pointer",
+                }}
+              >
+                Done
+              </button>
             </div>
           </div>
         )}
