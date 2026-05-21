@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { addMealPlanEntry } from "./actions";
 import type { MealSlot } from "@/lib/db/meal-plan";
@@ -33,6 +34,7 @@ export function AddMealButton({
   recipes: RecipeOption[];
   variant?: "empty" | "small";
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [recipeId, setRecipeId] = useState("");
@@ -65,6 +67,7 @@ export function AddMealButton({
       } else {
         setOpen(false);
         setRecipeId("");
+        router.refresh();
       }
     });
   }

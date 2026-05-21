@@ -16,33 +16,58 @@ const ALLOWED_SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner", "snack"];
 // If the recipe has no remaining entries, delete the row from the list.
 // RLS scopes meal_plan_entries to the current user via the meal_plans FK,
 // so a plain SELECT is safe.
-async function syncRecipeToShoppingList(recipeId: string) {
-  const supabase = await createClient();
-  const list = await getOrCreateActiveList();
+//
+// Returns true on success, false on (logged) failure. Never throws — callers
+// can decide whether a partial failure should still report success on the
+// meal-plan side.
+async function syncRecipeToShoppingList(recipeId: string): Promise<boolean> {
+  try {
+    const supabase = await createClient();
+    const list = await getOrCreateActiveList();
 
-  const { data: entries } = await supabase
-    .from("meal_plan_entries")
-    .select("servings")
-    .eq("recipe_id", recipeId);
-
-  const totalServings = (entries ?? []).reduce(
-    (sum, e) => sum + (Number(e.servings) || 0),
-    0,
-  );
-
-  if (totalServings > 0) {
-    await supabase
-      .from("list_recipes")
-      .upsert(
-        { list_id: list.id, recipe_id: recipeId, servings: totalServings },
-        { onConflict: "list_id,recipe_id" },
-      );
-  } else {
-    await supabase
-      .from("list_recipes")
-      .delete()
-      .eq("list_id", list.id)
+    const { data: entries, error: cntErr } = await supabase
+      .from("meal_plan_entries")
+      .select("servings")
       .eq("recipe_id", recipeId);
+    if (cntErr) {
+      console.error("[sync] count entries failed:", cntErr);
+      return false;
+    }
+
+    const totalServings = (entries ?? []).reduce(
+      (sum, e) => sum + (Number(e.servings) || 0),
+      0,
+    );
+
+    if (totalServings > 0) {
+      const { error: upErr } = await supabase
+        .from("list_recipes")
+        .upsert(
+          { list_id: list.id, recipe_id: recipeId, servings: totalServings },
+          { onConflict: "list_id,recipe_id" },
+        );
+      if (upErr) {
+        console.error("[sync] upsert list_recipes failed:", upErr);
+        return false;
+      }
+    } else {
+      const { error: delErr } = await supabase
+        .from("list_recipes")
+        .delete()
+        .eq("list_id", list.id)
+        .eq("recipe_id", recipeId);
+      if (delErr) {
+        console.error("[sync] delete list_recipes failed:", delErr);
+        return false;
+      }
+    }
+    console.log(
+      `[sync] recipe ${recipeId.slice(0, 8)} → list ${list.id.slice(0, 8)}: servings=${totalServings}`,
+    );
+    return true;
+  } catch (err) {
+    console.error("[sync] unexpected error:", err);
+    return false;
   }
 }
 
@@ -91,7 +116,9 @@ export async function addMealPlanEntry(input: {
 
   if (error || !data) return { ok: false, error: error?.message ?? "Insert failed" };
 
-  // Mirror the change onto the active shopping list.
+  // Mirror the change onto the active shopping list. Sync failures are logged
+  // but don't undo the meal-plan add — the user can manually rebuild via the
+  // "Build shopping list" button if anything got out of sync.
   await syncRecipeToShoppingList(recipeId);
 
   revalidatePath("/plan");

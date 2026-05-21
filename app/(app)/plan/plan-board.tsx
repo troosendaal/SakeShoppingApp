@@ -14,6 +14,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { Clock, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import type { MealSlot, PlanEntry } from "@/lib/db/meal-plan";
 import type { RecipePickerOption } from "@/components/recipe-picker";
@@ -52,6 +53,7 @@ export function PlanBoard({
   days: DayData[];
   recipes: RecipePickerOption[];
 }) {
+  const router = useRouter();
   const sensors = useSensors(
     // Require a small drag distance so clicks on the tile don't accidentally
     // become drags — keyboard sensor for accessibility.
@@ -89,13 +91,18 @@ export function PlanBoard({
     const recipe = recipes.find((r) => r.id === recipeId);
     if (!recipe) return;
     startTransition(async () => {
-      await addMealPlanEntry({
+      const r = await addMealPlanEntry({
         weekStart,
         date,
         mealSlot: defaultSlotFor(recipe.meal_category),
         recipeId,
         servings: recipe.base_servings,
       });
+      if (!r.ok) {
+        console.error("[plan dnd] add failed:", r.error);
+      } else {
+        router.refresh();
+      }
     });
   }
 
