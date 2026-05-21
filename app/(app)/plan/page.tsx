@@ -1,226 +1,207 @@
-import {
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-  Clock,
-  Copy,
-  Plus,
-  Search,
-  ShoppingBasket,
-  X,
-} from "lucide-react";
-import { useTranslations } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
 import { ConfigureBanner, isSupabaseConfigured } from "@/components/configure-banner";
+import {
+  addDays,
+  dayName,
+  formatWeekRange,
+  isoDate,
+  isSameDay,
+  parseIsoDate,
+  startOfWeek,
+} from "@/lib/date-utils";
+import { getMealPlanForWeek, type MealSlot, type PlanEntry } from "@/lib/db/meal-plan";
+import { getMyRecipes } from "@/lib/db/recipes";
+import { errorMessage } from "@/lib/errors";
+import { AddMealButton } from "./add-meal";
+import { BuildListButton } from "./build-list-button";
+import { RemoveEntryButton } from "./remove-entry";
+import { WeekNav } from "./week-nav";
 
-type MealCat = "breakfast" | "lunch" | "dinner";
+const SLOT_ORDER: MealSlot[] = ["breakfast", "lunch", "dinner", "snack"];
+// dnd-kit-friendly mapping from meal_slot enum → the colour bucket the CSS
+// already has on .meal-slot[data-cat="..."]. "snack" reuses the slate look.
+const SLOT_CAT: Record<MealSlot, string> = {
+  breakfast: "breakfast",
+  lunch: "lunch",
+  dinner: "dinner",
+  snack: "snack",
+};
 
-type Slot = { cat: MealCat; emoji: string; title: string; servings: number };
-type Day = { name: string; date: number; today?: boolean; slots: Slot[]; empties?: string[] };
+export default async function PlanPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ week?: string }>;
+}) {
+  const t = await getTranslations();
+  const _locale = await getLocale();
 
-const WEEK: Day[] = [
-  {
-    name: "Mon",
-    date: 18,
-    slots: [
-      { cat: "breakfast", emoji: "🥐", title: "Croissants & coffee", servings: 2 },
-      { cat: "dinner", emoji: "🍝", title: "Pasta al limone", servings: 4 },
-    ],
-    empties: ["add meal"],
-  },
-  {
-    name: "Tue · today",
-    date: 19,
-    today: true,
-    slots: [
-      { cat: "breakfast", emoji: "🥚", title: "Shakshuka", servings: 2 },
-      { cat: "lunch", emoji: "🥗", title: "Aubergine bowls", servings: 2 },
-      { cat: "dinner", emoji: "🍗", title: "Thai green curry", servings: 4 },
-    ],
-  },
-  {
-    name: "Wed",
-    date: 20,
-    slots: [{ cat: "dinner", emoji: "🍚", title: "Mushroom risotto", servings: 4 }],
-    empties: ["add meal"],
-  },
-  {
-    name: "Thu",
-    date: 21,
-    slots: [{ cat: "dinner", emoji: "🐟", title: "Salmon, broccoli", servings: 2 }],
-    empties: ["add meal"],
-  },
-  {
-    name: "Fri",
-    date: 22,
-    slots: [{ cat: "dinner", emoji: "🍕", title: "Pizza night", servings: 4 }],
-    empties: ["add meal"],
-  },
-  { name: "Sat", date: 23, slots: [], empties: ["breakfast", "lunch", "dinner"] },
-  {
-    name: "Sun",
-    date: 24,
-    slots: [{ cat: "lunch", emoji: "🍰", title: "Olive oil cake", servings: 8 }],
-    empties: ["add meal"],
-  },
-];
+  if (!isSupabaseConfigured()) {
+    return (
+      <>
+        <Header t={t} />
+        <ConfigureBanner message={t("common.configureSupabase")} />
+      </>
+    );
+  }
 
-const DRAWER_TILES = [
-  { cat: "Dinner", emoji: "🍝", title: "Pasta al limone", meta: "35 min · 4 srv" },
-  { cat: "Breakfast", emoji: "🥚", title: "Shakshuka", meta: "25 min · 4 srv" },
-  { cat: "Dinner", emoji: "🍚", title: "Mushroom risotto", meta: "1 h 10 · 4 srv" },
-  { cat: "Lunch", emoji: "🥗", title: "Aubergine bowls", meta: "45 min · 4 srv" },
-  { cat: "Dinner", emoji: "🍗", title: "Thai green curry", meta: "50 min · 4 srv" },
-  { cat: "Dessert", emoji: "🍰", title: "Olive oil cake", meta: "1 h 30 · 8 srv" },
-  { cat: "Sweets", emoji: "🍪", title: "Brown butter cookies", meta: "40 min · 12 srv" },
-];
+  // Resolve which week we're viewing
+  const params = await searchParams;
+  const weekStartDate = (() => {
+    if (params.week && /^\d{4}-\d{2}-\d{2}$/.test(params.week)) {
+      return startOfWeek(parseIsoDate(params.week));
+    }
+    return startOfWeek(new Date());
+  })();
+  const weekStartIso = isoDate(weekStartDate);
+  const today = new Date();
+  const isCurrentWeek = isSameDay(weekStartDate, startOfWeek(today));
+  const { weekNumber, range } = formatWeekRange(weekStartDate);
 
-export default function PlanPage() {
-  const t = useTranslations();
-  const showBanner = !isSupabaseConfigured();
+  let plan: Awaited<ReturnType<typeof getMealPlanForWeek>> | null = null;
+  let recipes: Awaited<ReturnType<typeof getMyRecipes>> = [];
+  let loadError: string | null = null;
+  try {
+    [plan, recipes] = await Promise.all([
+      getMealPlanForWeek(weekStartIso),
+      getMyRecipes(),
+    ]);
+  } catch (err) {
+    console.error("[plan] load failed:", err);
+    loadError = errorMessage(err);
+  }
+
+  const recipeOptions = recipes.map((r) => ({
+    id: r.id,
+    title: r.title,
+    hero_emoji: r.hero_emoji,
+    base_servings: r.base_servings,
+    meal_category: r.meal_category as string,
+  }));
+
+  // Index entries by day for quick render lookup
+  const entriesByDay = new Map<string, PlanEntry[]>();
+  for (const e of plan?.entries ?? []) {
+    const arr = entriesByDay.get(e.date) ?? [];
+    arr.push(e);
+    entriesByDay.set(e.date, arr);
+  }
+  // Sort each day's entries by slot order, then position
+  for (const arr of entriesByDay.values()) {
+    arr.sort((a, b) => {
+      const slotDiff = SLOT_ORDER.indexOf(a.mealSlot) - SLOT_ORDER.indexOf(b.mealSlot);
+      if (slotDiff !== 0) return slotDiff;
+      return a.position - b.position;
+    });
+  }
+
+  const totalEntries = plan?.entries.length ?? 0;
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStartDate, i));
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h2>
-            {t("pages.plan.title")} <em>{t("pages.plan.titleEm")}</em>
-          </h2>
-          <p>{t("pages.plan.subtitle")}</p>
-        </div>
-      </div>
+      <Header t={t} />
 
-      {showBanner && <ConfigureBanner message={t("common.configureSupabase")} />}
+      {loadError && (
+        <div
+          style={{
+            background: "var(--terracotta-soft)",
+            border: "1px solid var(--terracotta)",
+            color: "var(--ink)",
+            borderRadius: 10,
+            padding: "10px 14px",
+            marginBottom: 16,
+            fontSize: 13,
+          }}
+        >
+          Couldn't load meal plan: {loadError}
+        </div>
+      )}
 
       <div className="week-toolbar">
-        <div className="week-nav">
-          <button type="button" className="week-nav-btn" aria-label="Previous week">
-            <ChevronLeft />
-          </button>
-          <div>
-            <span className="week-label serif">
-              Week 21 · <em>May 18 – 24</em>
-            </span>
-            <span className="week-sub">· this week</span>
-          </div>
-          <button type="button" className="week-nav-btn" aria-label="Next week">
-            <ChevronRight />
-          </button>
-          <button type="button" className="week-nav-btn" aria-label="Today">
-            <Calendar />
-          </button>
-        </div>
+        <WeekNav
+          weekStart={weekStartIso}
+          weekLabel={range}
+          weekNumber={weekNumber}
+          isCurrentWeek={isCurrentWeek}
+        />
         <div className="week-actions">
-          <button type="button" className="btn btn-secondary">
-            <Copy /> {t("common.copyLastWeek")}
-          </button>
-          <button type="button" className="btn btn-primary">
-            <ShoppingBasket /> {t("common.buildShoppingList")}
-          </button>
+          <BuildListButton weekStart={weekStartIso} entryCount={totalEntries} />
         </div>
       </div>
 
-      <div className="week-summary">
-        <div className="summary-card">
-          <div className="em">🍽️</div>
-          <div className="info">
-            <div className="val serif">9</div>
-            <div className="lbl">Meals planned</div>
-          </div>
+      {recipes.length === 0 ? (
+        <div
+          style={{
+            background: "var(--bg-card)",
+            border: "1px dashed var(--line)",
+            borderRadius: 14,
+            padding: 32,
+            textAlign: "center",
+            color: "var(--ink-soft)",
+            fontSize: 14,
+          }}
+        >
+          You need at least one recipe to plan meals. Add one on the{" "}
+          <strong>Recipes</strong> tab first.
         </div>
-        <div className="summary-card">
-          <div className="em">🛒</div>
-          <div className="info">
-            <div className="val serif">38</div>
-            <div className="lbl">Items to buy</div>
-          </div>
-        </div>
-        <div className="summary-card cta">
-          <div className="em">⚡</div>
-          <div className="info">
-            <div className="val serif">5 days</div>
-            <div className="lbl">Until next shop</div>
-          </div>
-        </div>
-      </div>
-
-      <div className="week-grid">
-        {WEEK.map((day) => (
-          <div key={day.date} className={`day${day.today ? " today" : ""}`}>
-            <div className="day-head">
-              <span className="name">{day.name}</span>
-              <span className="date">{day.date}</span>
-            </div>
-            <div className="day-body">
-              {day.slots.map((s, i) => (
-                <div key={i} className="meal-slot" data-cat={s.cat}>
-                  <div className="slot-type">{s.cat}</div>
-                  <div className="slot-title">
-                    <span className="slot-emoji">{s.emoji}</span> {s.title}
-                  </div>
-                  <div className="slot-servings">{s.servings} servings</div>
-                  <button
-                    type="button"
-                    aria-label="Remove"
-                    style={{
-                      position: "absolute",
-                      top: 4,
-                      right: 4,
-                      width: 18,
-                      height: 18,
-                      borderRadius: "50%",
-                      border: "none",
-                      background: "rgba(255,255,255,.7)",
-                      display: "none",
-                    }}
-                  >
-                    <X />
-                  </button>
+      ) : (
+        <div className="week-grid">
+          {days.map((day) => {
+            const dateIso = isoDate(day);
+            const isToday = isSameDay(day, today);
+            const dayEntries = entriesByDay.get(dateIso) ?? [];
+            return (
+              <div key={dateIso} className={`day${isToday ? " today" : ""}`}>
+                <div className="day-head">
+                  <span className="name">
+                    {dayName(day)}
+                    {isToday ? " · today" : ""}
+                  </span>
+                  <span className="date">{day.getDate()}</span>
                 </div>
-              ))}
-              {(day.empties ?? []).map((label, i) => (
-                <button key={i} type="button" className="slot-empty">
-                  <Plus
-                    style={{
-                      width: 14,
-                      height: 14,
-                      display: "inline-block",
-                      verticalAlign: "middle",
-                      marginRight: 3,
-                    }}
-                  />{" "}
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="recipe-drawer">
-        <div className="drawer-head">
-          <h3 className="serif">
-            Drag from <em>recipes.</em>
-          </h3>
-          <div className="drawer-search">
-            <Search />
-            <input placeholder={t("common.search")} />
-          </div>
-        </div>
-        <div className="recipe-strip">
-          {DRAWER_TILES.map((tile, i) => (
-            <div key={i} className="recipe-tile">
-              <div className="tile-cat">{tile.cat}</div>
-              <div className="tile-row">
-                <div className="tile-emoji">{tile.emoji}</div>
-                <div className="tile-title serif">{tile.title}</div>
+                <div className="day-body">
+                  {dayEntries.map((e) => (
+                    <div
+                      key={e.id}
+                      className="meal-slot"
+                      data-cat={SLOT_CAT[e.mealSlot]}
+                      style={{ cursor: "default", position: "relative" }}
+                    >
+                      <div className="slot-type">{e.mealSlot}</div>
+                      <div className="slot-title">
+                        <span className="slot-emoji">{e.recipe.hero_emoji}</span>{" "}
+                        {e.recipe.title}
+                      </div>
+                      <div className="slot-servings">
+                        {e.servings} serving{e.servings === 1 ? "" : "s"}
+                      </div>
+                      <RemoveEntryButton entryId={e.id} />
+                    </div>
+                  ))}
+                  <AddMealButton
+                    weekStart={weekStartIso}
+                    date={dateIso}
+                    recipes={recipeOptions}
+                  />
+                </div>
               </div>
-              <div className="tile-meta">
-                <Clock /> {tile.meta}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
-      </div>
+      )}
     </>
+  );
+}
+
+function Header({ t }: { t: (k: string) => string }) {
+  return (
+    <div className="page-head">
+      <div>
+        <h2>
+          {t("pages.plan.title")} <em>{t("pages.plan.titleEm")}</em>
+        </h2>
+        <p>{t("pages.plan.subtitle")}</p>
+      </div>
+    </div>
   );
 }
