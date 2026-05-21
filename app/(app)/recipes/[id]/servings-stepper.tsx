@@ -88,14 +88,6 @@ export function ServingsStepper({
               <Plus size={12} />
             </button>
           </div>
-          {servings !== baseServings && (
-            <span
-              className="serif"
-              style={{ fontStyle: "italic", fontSize: 12, color: "var(--ink-soft)" }}
-            >
-              scaled from {baseServings}
-            </span>
-          )}
         </div>
       </div>
 

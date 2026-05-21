@@ -10,13 +10,33 @@ import {
   MEAL_CATEGORIES,
   UNITS,
 } from "@/lib/db/recipe-types";
-import { createRecipe } from "../actions";
+import { createRecipe, updateRecipe } from "../actions";
 
 type IngRow = {
   ingredient_id: string;
   quantity: string;
   unit: string;
   is_optional: boolean;
+};
+
+export type RecipeFormInitial = {
+  recipeId: string; // presence flips the form into update mode
+  title: string;
+  description: string;
+  url: string;
+  instructions: string;
+  meal_category: (typeof MEAL_CATEGORIES)[number];
+  food_tags: string[];
+  base_servings: number;
+  prep_time_min: number | null;
+  lead_time_min: number | null;
+  hero_emoji: string;
+  ingredients: Array<{
+    ingredient_id: string;
+    quantity: number;
+    unit: string;
+    is_optional: boolean;
+  }>;
 };
 
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -31,29 +51,45 @@ const CATEGORY_EMOJI: Record<string, string> = {
 export function RecipeForm({
   ingredients,
   locale,
+  initial,
 }: {
   ingredients: IngredientLite[];
   locale: Locale;
+  initial?: RecipeFormInitial;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const isEdit = !!initial?.recipeId;
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [url, setUrl] = useState("");
-  const [instructions, setInstructions] = useState("");
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [url, setUrl] = useState(initial?.url ?? "");
+  const [instructions, setInstructions] = useState(initial?.instructions ?? "");
   const [mealCategory, setMealCategory] = useState<
     (typeof MEAL_CATEGORIES)[number]
-  >("dinner");
-  const [foodTagsText, setFoodTagsText] = useState("");
-  const [baseServings, setBaseServings] = useState(4);
-  const [prepTime, setPrepTime] = useState<number | "">("");
-  const [leadTime, setLeadTime] = useState<number | "">("");
-  const [heroEmoji, setHeroEmoji] = useState("🍝");
-  const [rows, setRows] = useState<IngRow[]>([
-    { ingredient_id: "", quantity: "", unit: "g", is_optional: false },
-  ]);
+  >(initial?.meal_category ?? "dinner");
+  const [foodTagsText, setFoodTagsText] = useState(
+    initial?.food_tags?.join(", ") ?? "",
+  );
+  const [baseServings, setBaseServings] = useState(initial?.base_servings ?? 4);
+  const [prepTime, setPrepTime] = useState<number | "">(
+    initial?.prep_time_min ?? "",
+  );
+  const [leadTime, setLeadTime] = useState<number | "">(
+    initial?.lead_time_min ?? "",
+  );
+  const [heroEmoji, setHeroEmoji] = useState(initial?.hero_emoji ?? "🍝");
+  const [rows, setRows] = useState<IngRow[]>(
+    initial?.ingredients?.length
+      ? initial.ingredients.map((i) => ({
+          ingredient_id: i.ingredient_id,
+          quantity: String(i.quantity),
+          unit: i.unit,
+          is_optional: i.is_optional,
+        }))
+      : [{ ingredient_id: "", quantity: "", unit: "g", is_optional: false }],
+  );
 
   function updateRow(i: number, patch: Partial<IngRow>) {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -91,21 +127,25 @@ export function RecipeForm({
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean);
 
+    const payload = {
+      title,
+      description: description || null,
+      url: url || null,
+      instructions: instructions || null,
+      meal_category: mealCategory,
+      food_tags,
+      base_servings: baseServings,
+      prep_time_min: prepTime === "" ? null : prepTime,
+      lead_time_min: leadTime === "" ? null : leadTime,
+      hero_emoji: heroEmoji || "🍽️",
+      source_language: locale,
+      ingredients: cleanIngredients,
+    };
+
     startTransition(async () => {
-      const result = await createRecipe({
-        title,
-        description: description || null,
-        url: url || null,
-        instructions: instructions || null,
-        meal_category: mealCategory,
-        food_tags,
-        base_servings: baseServings,
-        prep_time_min: prepTime === "" ? null : prepTime,
-        lead_time_min: leadTime === "" ? null : leadTime,
-        hero_emoji: heroEmoji || "🍽️",
-        source_language: locale,
-        ingredients: cleanIngredients,
-      });
+      const result = isEdit
+        ? await updateRecipe(initial!.recipeId, payload)
+        : await createRecipe(payload);
       if (!result.ok) {
         setError(result.error);
         return;
@@ -348,12 +388,14 @@ export function RecipeForm({
         <button
           type="button"
           className="btn btn-secondary"
-          onClick={() => router.push("/recipes")}
+          onClick={() =>
+            router.push(isEdit ? `/recipes/${initial!.recipeId}` : "/recipes")
+          }
         >
           Cancel
         </button>
         <button type="submit" className="btn btn-primary" disabled={pending}>
-          {pending ? "Saving…" : "Save recipe"}
+          {pending ? "Saving…" : isEdit ? "Save changes" : "Save recipe"}
         </button>
       </div>
     </form>

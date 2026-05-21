@@ -97,6 +97,74 @@ export async function createRecipe(
   return { ok: true, recipeId: recipe.id };
 }
 
+export async function updateRecipe(
+  id: string,
+  raw: unknown,
+): Promise<CreateRecipeResult> {
+  if (!id) return { ok: false, error: "Missing recipe id" };
+
+  const parsed = RecipeInput.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues.map((i) => i.message).join("; "),
+    };
+  }
+  const input = parsed.data;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in" };
+
+  // RLS makes the owner check redundant, but the explicit .eq is a good seatbelt.
+  const { error: rErr } = await supabase
+    .from("recipes")
+    .update({
+      title: input.title,
+      description: input.description || null,
+      url: input.url || null,
+      instructions: input.instructions || null,
+      meal_category: input.meal_category,
+      food_tags: input.food_tags,
+      base_servings: input.base_servings,
+      prep_time_min: input.prep_time_min ?? null,
+      lead_time_min: input.lead_time_min ?? null,
+      hero_emoji: input.hero_emoji,
+      source_language: input.source_language,
+    })
+    .eq("id", id)
+    .eq("owner_id", user.id);
+
+  if (rErr) return { ok: false, error: rErr.message };
+
+  // Replace ingredients wholesale. Cleaner than diffing — and recipe_ingredients
+  // is the only place ingredient_id is referenced from a recipe, so cascading
+  // effects aren't a concern.
+  const { error: dErr } = await supabase
+    .from("recipe_ingredients")
+    .delete()
+    .eq("recipe_id", id);
+  if (dErr) return { ok: false, error: `Clearing ingredients failed: ${dErr.message}` };
+
+  const rows = input.ingredients.map((ing, i) => ({
+    recipe_id: id,
+    ingredient_id: ing.ingredient_id,
+    quantity: ing.quantity,
+    unit: ing.unit,
+    is_optional: ing.is_optional ?? false,
+    position: i,
+  }));
+
+  const { error: iErr } = await supabase.from("recipe_ingredients").insert(rows);
+  if (iErr) return { ok: false, error: `Ingredients failed: ${iErr.message}` };
+
+  revalidatePath("/recipes");
+  revalidatePath(`/recipes/${id}`);
+  return { ok: true, recipeId: id };
+}
+
 export async function deleteRecipe(id: string): Promise<void> {
   const supabase = await createClient();
   await supabase.from("recipes").delete().eq("id", id);

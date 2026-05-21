@@ -1,10 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Clock, ExternalLink, Hourglass, Users } from "lucide-react";
+import {
+  ChevronLeft,
+  Clock,
+  Edit3,
+  ExternalLink,
+  Hourglass,
+  Users,
+} from "lucide-react";
 import { getLocale } from "next-intl/server";
 import { isSupabaseConfigured } from "@/components/configure-banner";
 import { getRecipeWithIngredients } from "@/lib/db/recipes";
 import { ingredientName, type Locale } from "@/lib/db/recipe-types";
+import { DeleteRecipeButton } from "./delete-button";
 import { ServingsStepper } from "./servings-stepper";
 
 const CATEGORY_GRADIENT: Record<string, string> = {
@@ -213,6 +221,22 @@ export default async function RecipeDetailPage({
               </div>
             </section>
           )}
+
+          <section
+            style={{
+              marginTop: 32,
+              paddingTop: 20,
+              borderTop: "1px dashed var(--line)",
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <Link href={`/recipes/${recipe.id}/edit`} className="btn btn-secondary">
+              <Edit3 size={14} /> Edit
+            </Link>
+            <DeleteRecipeButton recipeId={recipe.id} recipeTitle={recipe.title} />
+          </section>
         </div>
       </div>
     </>
