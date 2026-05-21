@@ -458,6 +458,10 @@ body::before {
   background: var(--terracotta-soft);
   border-color: rgba(200, 85, 44, 0.4);
 }
+.meal-slot[data-cat="snack"] {
+  background: var(--slate-soft);
+  border-color: rgba(91, 107, 122, 0.3);
+}
 .meal-slot .slot-type {
   font-size: 9px;
   letter-spacing: 0.18em;
