@@ -3,7 +3,13 @@ import { Flame, Settings } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { LangSwitch } from "./lang-switch";
 
-export function Topbar({ initials = "MV" }: { initials?: string }) {
+export function Topbar({
+  initials = "?",
+  displayName,
+}: {
+  initials?: string;
+  displayName?: string;
+}) {
   const t = useTranslations("brand");
   return (
     <header className="topbar">
@@ -23,7 +29,9 @@ export function Topbar({ initials = "MV" }: { initials?: string }) {
         <Link href="/settings" className="icon-btn" aria-label="Settings">
           <Settings />
         </Link>
-        <div className="avatar">{initials}</div>
+        <div className="avatar" title={displayName ?? "Not signed in"}>
+          {initials}
+        </div>
       </div>
     </header>
   );

@@ -42,8 +42,12 @@ export async function middleware(req: NextRequest) {
     } = await supabase.auth.getUser();
 
     const url = req.nextUrl.clone();
+    // /auth/* covers the magic-link callback — must pass through regardless of
+    // auth state so the session can be established.
     const isAuthPage =
-      url.pathname.startsWith("/login") || url.pathname.startsWith("/signup");
+      url.pathname.startsWith("/login") ||
+      url.pathname.startsWith("/signup") ||
+      url.pathname.startsWith("/auth");
 
     if (!user && !isAuthPage) {
       url.pathname = "/login";

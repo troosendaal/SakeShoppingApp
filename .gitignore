@@ -39,3 +39,6 @@ Thumbs.db
 # editors
 .vscode/
 .idea/
+
+# Claude Code local config
+.claude/

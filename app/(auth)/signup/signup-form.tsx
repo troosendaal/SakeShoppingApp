@@ -20,8 +20,8 @@ export function SignupForm() {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/recipes`,
-          // Stash signup details so the post-auth flow can create the profile row.
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          // Stashed in user_metadata; /auth/callback reads it to create the profile row.
           data: { display_name: displayName, preferred_language: language },
         },
       });
