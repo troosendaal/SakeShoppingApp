@@ -17,13 +17,16 @@ export async function getMyRecipes(): Promise<RecipeCardData[]> {
     .select(
       `
       id, title, hero_emoji, meal_category, food_tags, base_servings,
-      prep_time_min, lead_time_min, description,
+      prep_time_min, lead_time_min, description, usage_count, created_at,
       recipe_ingredients (
         position,
         ingredients ( emoji, name_en, name_nl, name_fr )
       )
     `,
     )
+    // Most-used first by default; recents break ties. The client grid lets
+    // the user override this with the sort dropdown.
+    .order("usage_count", { ascending: false })
     .order("created_at", { ascending: false });
 
   if (error) throw error;
@@ -77,6 +80,8 @@ export async function getMyRecipes(): Promise<RecipeCardData[]> {
       lead_time_min: (r.lead_time_min ?? null) as number | null,
       description: (r.description ?? null) as string | null,
       ingredient_emojis,
+      usage_count: ((r.usage_count as number | null) ?? 0),
+      created_at: (r.created_at as string) ?? new Date(0).toISOString(),
       search_haystack,
     };
   });

@@ -33,6 +33,8 @@ export type RecipeCardData = {
   lead_time_min: number | null;
   description: string | null;
   ingredient_emojis: string[];
+  usage_count: number;
+  created_at: string; // ISO, used for "Newest" sort
   // Lowercased searchable haystack: title + ingredient names in all 3 langs
   // + food tags. Built server-side so the client filter is just a string
   // contains check.
