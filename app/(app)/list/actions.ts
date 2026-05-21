@@ -224,6 +224,98 @@ export async function addAdhocItem(
 }
 
 // --------------------------------------------------------------------------
+// Duplicate a past (completed/archived) list into a new active one.
+// Clones list_recipes and list_adhoc_items but resets line state — checks,
+// notes, urgent flags, and qty overrides do not carry over (intentional;
+// you're starting a fresh shop). The previous "currently active" list is
+// archived so the duplicate becomes the one visible on /list.
+// --------------------------------------------------------------------------
+
+export async function duplicateShoppingList(
+  sourceListId: string,
+): Promise<{ ok: true; newListId: string } | { ok: false; error: string }> {
+  if (!sourceListId) return { ok: false, error: "Missing list id" };
+
+  const supabase = await createClient();
+  const userId = await getUserId();
+  if (!userId) return { ok: false, error: "Not signed in" };
+
+  // 1. Confirm the source list belongs to this user (RLS will reject other
+  //    cases anyway, but explicit check gives a friendlier error).
+  const { data: source, error: srcErr } = await supabase
+    .from("shopping_lists")
+    .select("id, title")
+    .eq("id", sourceListId)
+    .eq("owner_id", userId)
+    .maybeSingle();
+  if (srcErr) return { ok: false, error: srcErr.message };
+  if (!source) return { ok: false, error: "List not found" };
+
+  // 2. Archive any currently-active list so there's only one active at a time.
+  await supabase
+    .from("shopping_lists")
+    .update({ status: "archived" })
+    .eq("owner_id", userId)
+    .eq("status", "active");
+
+  // 3. Create the new active list, link it to the source for traceability.
+  const { data: newList, error: nlErr } = await supabase
+    .from("shopping_lists")
+    .insert({
+      owner_id: userId,
+      title: source.title || "Shopping list",
+      status: "active",
+      source_list_id: sourceListId,
+    })
+    .select("id")
+    .single();
+  if (nlErr || !newList) {
+    return { ok: false, error: nlErr?.message ?? "Failed to create new list" };
+  }
+
+  // 4. Clone recipes — the trigger on list_recipes auto-bumps each recipe's
+  //    usage_count, which we want.
+  const { data: recipes, error: rErr } = await supabase
+    .from("list_recipes")
+    .select("recipe_id, servings")
+    .eq("list_id", sourceListId);
+  if (rErr) return { ok: false, error: rErr.message };
+  if (recipes && recipes.length > 0) {
+    const rows = recipes.map((r) => ({
+      list_id: newList.id,
+      recipe_id: r.recipe_id,
+      servings: r.servings,
+    }));
+    const { error: insRErr } = await supabase.from("list_recipes").insert(rows);
+    if (insRErr) return { ok: false, error: insRErr.message };
+  }
+
+  // 5. Clone ad-hoc items.
+  const { data: adhoc, error: aErr } = await supabase
+    .from("list_adhoc_items")
+    .select("ingredient_id, quantity, unit")
+    .eq("list_id", sourceListId);
+  if (aErr) return { ok: false, error: aErr.message };
+  if (adhoc && adhoc.length > 0) {
+    const rows = adhoc.map((a) => ({
+      list_id: newList.id,
+      ingredient_id: a.ingredient_id,
+      quantity: a.quantity,
+      unit: a.unit,
+      added_by: userId,
+    }));
+    const { error: insAErr } = await supabase
+      .from("list_adhoc_items")
+      .insert(rows);
+    if (insAErr) return { ok: false, error: insAErr.message };
+  }
+
+  revalidatePath("/list");
+  revalidatePath("/history");
+  return { ok: true, newListId: newList.id };
+}
+
+// --------------------------------------------------------------------------
 // Finish shopping — moves the active list to History
 // --------------------------------------------------------------------------
 

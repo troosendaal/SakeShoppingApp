@@ -1,93 +1,144 @@
-import { Copy, Eye, Search } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { getTranslations } from "next-intl/server";
 import { ConfigureBanner, isSupabaseConfigured } from "@/components/configure-banner";
+import { getCompletedLists, type CompletedListSummary } from "@/lib/db/shopping-list";
+import { errorMessage } from "@/lib/errors";
+import { DuplicateListButton } from "./duplicate-button";
 
-const HISTORY = [
-  {
-    month: "May",
-    day: 11,
-    title: "Week 20 list",
-    sub: "5 recipes · 32 items · completed Sunday at 6:43 pm",
-    bought: 32,
-    skipped: 2,
-  },
-  {
-    month: "May",
-    day: 4,
-    title: "Week 19 list",
-    sub: "4 recipes · 28 items · completed Saturday at 11:22 am",
-    bought: 28,
-    skipped: 0,
-  },
-  {
-    month: "Apr",
-    day: 27,
-    title: "Birthday weekend shop",
-    sub: "2 recipes + party supplies · 41 items · completed Friday at 4:10 pm",
-    bought: 39,
-    skipped: 2,
-  },
-  {
-    month: "Apr",
-    day: 20,
-    title: "Week 17 list",
-    sub: "6 recipes · 35 items · completed Sunday at 5:15 pm",
-    bought: 34,
-    skipped: 1,
-  },
+const MONTHS_EN = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-export default function HistoryPage() {
-  const t = useTranslations();
-  const showBanner = !isSupabaseConfigured();
+function dateBlock(iso: string | null): { month: string; day: string } {
+  if (!iso) return { month: "—", day: "—" };
+  const d = new Date(iso);
+  return { month: MONTHS_EN[d.getMonth()] ?? "—", day: String(d.getDate()) };
+}
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return "completed at unknown time";
+  const d = new Date(iso);
+  const formatted = d.toLocaleString(undefined, {
+    weekday: "long",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return `completed ${formatted}`;
+}
+
+export default async function HistoryPage() {
+  const t = await getTranslations();
+
+  if (!isSupabaseConfigured()) {
+    return (
+      <>
+        <Header t={t} />
+        <ConfigureBanner message={t("common.configureSupabase")} />
+      </>
+    );
+  }
+
+  let lists: CompletedListSummary[] = [];
+  let loadError: string | null = null;
+  try {
+    lists = await getCompletedLists();
+  } catch (err) {
+    console.error("[history] getCompletedLists failed:", err);
+    loadError = errorMessage(err);
+  }
 
   return (
     <>
-      <div className="page-head">
-        <div>
-          <h2>
-            {t("pages.history.title")} <em>{t("pages.history.titleEm")}</em>
-          </h2>
-          <p>{t("pages.history.subtitle")}</p>
-        </div>
-        <div className="search">
-          <Search />
-          <input placeholder={t("common.search")} />
-        </div>
-      </div>
+      <Header t={t} />
 
-      {showBanner && <ConfigureBanner message={t("common.configureSupabase")} />}
+      {loadError && (
+        <div
+          style={{
+            background: "var(--terracotta-soft)",
+            border: "1px solid var(--terracotta)",
+            color: "var(--ink)",
+            borderRadius: 10,
+            padding: "10px 14px",
+            marginBottom: 16,
+            fontSize: 13,
+          }}
+        >
+          Couldn't load history: {loadError}
+        </div>
+      )}
 
-      <div className="history-list">
-        {HISTORY.map((h) => (
-          <div key={`${h.month}-${h.day}`} className="history-card">
-            <div className="date-block">
-              <div className="month">{h.month}</div>
-              <div className="day serif">{h.day}</div>
-            </div>
-            <div className="info">
-              <h5 className="serif">{h.title}</h5>
-              <p>{h.sub}</p>
-            </div>
-            <div className="stats">
-              <div>
-                <b className="serif">{h.bought}</b> bought
+      {lists.length === 0 && !loadError ? (
+        <EmptyState />
+      ) : (
+        <div className="history-list">
+          {lists.map((list) => {
+            const { month, day } = dateBlock(list.completedAt ?? list.createdAt);
+            const summary = `${list.recipeCount} recipe${list.recipeCount === 1 ? "" : "s"} · ${list.adhocCount} ad-hoc · ${relativeTime(list.completedAt)}`;
+            const items = list.boughtCount;
+
+            return (
+              <div key={list.id} className="history-card">
+                <div className="date-block">
+                  <div className="month">{month}</div>
+                  <div className="day serif">{day}</div>
+                </div>
+                <div className="info">
+                  <h5 className="serif">{list.title || "Shopping list"}</h5>
+                  <p>{summary}</p>
+                </div>
+                <div className="stats">
+                  <div>
+                    <b className="serif">{items}</b> bought
+                  </div>
+                </div>
+                <div className="actions">
+                  <DuplicateListButton listId={list.id} title={list.title} />
+                </div>
               </div>
-              <div>
-                <b className="serif">{h.skipped}</b> skipped
-              </div>
-            </div>
-            <div className="actions">
-              <button type="button" className="btn btn-secondary">
-                <Copy /> {t("common.duplicate")}
-              </button>
-              <button type="button" className="btn btn-secondary" aria-label="View">
-                <Eye />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </>
+  );
+}
+
+function Header({ t }: { t: (k: string) => string }) {
+  return (
+    <div className="page-head">
+      <div>
+        <h2>
+          {t("pages.history.title")} <em>{t("pages.history.titleEm")}</em>
+        </h2>
+        <p>{t("pages.history.subtitle")}</p>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div
+      style={{
+        background: "var(--bg-card)",
+        border: "1px solid var(--line)",
+        borderRadius: 14,
+        padding: 48,
+        textAlign: "center",
+        boxShadow: "var(--shadow)",
+        color: "var(--ink-soft)",
+      }}
+    >
+      <h3
+        className="serif"
+        style={{ fontWeight: 400, fontSize: 22, margin: 0, color: "var(--ink)" }}
+      >
+        No past lists yet
+      </h3>
+      <p style={{ marginTop: 8, fontSize: 14 }}>
+        Finish your first shopping list and it will appear here. You can
+        duplicate any past list to start a fresh one.
+      </p>
+    </div>
   );
 }

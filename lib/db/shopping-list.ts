@@ -9,6 +9,16 @@ import type {
   MergedLine,
 } from "./shopping-list-types";
 
+export type CompletedListSummary = {
+  id: string;
+  title: string;
+  completedAt: string | null; // ISO
+  createdAt: string;
+  recipeCount: number;
+  adhocCount: number;
+  boughtCount: number;
+};
+
 // Get the user's currently-active shopping list, creating one if none exists.
 export async function getOrCreateActiveList(): Promise<{ id: string }> {
   const supabase = await createClient();
@@ -348,4 +358,54 @@ export async function getActiveListGrouped(locale: Locale): Promise<GroupedList>
   }
 
   return { listId: list.id, groups: visible, otherGroup };
+}
+
+// --------------------------------------------------------------------------
+// History — completed / archived lists
+// --------------------------------------------------------------------------
+// Returns one summary card per past list, newest-completed first.
+// recipeCount / adhocCount come from straight row counts; boughtCount is
+// the number of items the user actually ticked off via list_line_state.
+export async function getCompletedLists(): Promise<CompletedListSummary[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from("shopping_lists")
+    .select(
+      `id, title, completed_at, created_at, status,
+       list_recipes ( recipe_id ),
+       list_adhoc_items ( id ),
+       list_line_state ( is_checked )`,
+    )
+    .eq("owner_id", user.id)
+    .in("status", ["completed", "archived"])
+    .order("completed_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  if (!data) return [];
+
+  type Row = {
+    id: string;
+    title: string;
+    completed_at: string | null;
+    created_at: string;
+    list_recipes: Array<unknown> | null;
+    list_adhoc_items: Array<unknown> | null;
+    list_line_state: Array<{ is_checked: boolean }> | null;
+  };
+
+  return (data as unknown as Row[]).map((r) => ({
+    id: r.id,
+    title: r.title,
+    completedAt: r.completed_at,
+    createdAt: r.created_at,
+    recipeCount: r.list_recipes?.length ?? 0,
+    adhocCount: r.list_adhoc_items?.length ?? 0,
+    boughtCount: (r.list_line_state ?? []).filter((s) => s.is_checked).length,
+  }));
 }
