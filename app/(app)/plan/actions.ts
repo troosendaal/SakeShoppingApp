@@ -141,19 +141,98 @@ export async function removeMealPlanEntry(
   if (lookupErr) return { ok: false, error: lookupErr.message };
   if (!entry) return { ok: false, error: "Meal entry not found" };
 
+  const recipeId = entry.recipe_id as string;
+  console.log(`[remove] entry=${entryId.slice(0, 8)} recipe=${recipeId.slice(0, 8)}`);
+
   const { error } = await supabase
     .from("meal_plan_entries")
     .delete()
     .eq("id", entryId);
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    console.error("[remove] delete failed:", error);
+    return { ok: false, error: error.message };
+  }
+
+  // Sanity-check the post-delete state — if the entry's still there, the
+  // delete silently no-op'd (RLS or a stale id). Logged so we can spot it.
+  const { count } = await supabase
+    .from("meal_plan_entries")
+    .select("*", { count: "exact", head: true })
+    .eq("id", entryId);
+  if ((count ?? 0) > 0) {
+    console.error(`[remove] WARNING: entry ${entryId} still exists after delete (RLS?)`);
+  }
 
   // Recompute the shopping list contribution. If no entries remain for this
   // recipe, syncRecipeToShoppingList drops the row from list_recipes.
-  await syncRecipeToShoppingList(entry.recipe_id as string);
+  await syncRecipeToShoppingList(recipeId);
 
   revalidatePath("/plan");
   revalidatePath("/list");
   return { ok: true };
+}
+
+// Full rebuild — wipes any auto-synced rows on the active list and rebuilds
+// them from the current meal-plan-entries. Use this when something got out
+// of sync. Manually-added rows on the list (via "Add to shopping list" on a
+// recipe detail page) are NOT preserved here, by design — the user's most
+// recent intent is the meal plan.
+export async function resyncShoppingListFromMealPlan(): Promise<
+  ActionResult<{ recipesOnList: number }>
+> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Not signed in" };
+
+  const list = await getOrCreateActiveList();
+
+  // Pull every meal_plan_entry the user has (RLS already scopes this to
+  // their plans).
+  const { data: allEntries, error: entErr } = await supabase
+    .from("meal_plan_entries")
+    .select("recipe_id, servings");
+  if (entErr) return { ok: false, error: entErr.message };
+
+  // Coalesce by recipe → total servings.
+  const byRecipe = new Map<string, number>();
+  for (const e of allEntries ?? []) {
+    const rid = e.recipe_id as string;
+    const s = Number(e.servings) || 0;
+    byRecipe.set(rid, (byRecipe.get(rid) ?? 0) + s);
+  }
+
+  // Wipe the entire active list's recipe rows so stale ones disappear.
+  const { error: delErr } = await supabase
+    .from("list_recipes")
+    .delete()
+    .eq("list_id", list.id);
+  if (delErr) {
+    console.error("[resync] wipe list_recipes failed:", delErr);
+    return { ok: false, error: delErr.message };
+  }
+
+  // Insert the canonical set.
+  if (byRecipe.size > 0) {
+    const rows = Array.from(byRecipe, ([recipe_id, servings]) => ({
+      list_id: list.id,
+      recipe_id,
+      servings,
+    }));
+    const { error: insErr } = await supabase.from("list_recipes").insert(rows);
+    if (insErr) {
+      console.error("[resync] insert list_recipes failed:", insErr);
+      return { ok: false, error: insErr.message };
+    }
+  }
+
+  console.log(
+    `[resync] list=${list.id.slice(0, 8)} recipes=${byRecipe.size}`,
+  );
+  revalidatePath("/list");
+  revalidatePath("/plan");
+  return { ok: true, recipesOnList: byRecipe.size };
 }
 
 // Adds every meal-plan entry in the given week onto the user's active

@@ -9,6 +9,7 @@ import { errorMessage } from "@/lib/errors";
 import { ListLine, RecentItem } from "./list-line";
 import { QuickAdd } from "./quick-add";
 import { FinishShoppingButton } from "./finish-button";
+import { ResyncButton } from "./resync-button";
 
 export default async function ListPage() {
   const t = await getTranslations();
@@ -150,7 +151,17 @@ export default async function ListPage() {
             </section>
           )}
 
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginTop: 16,
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <ResyncButton />
             <FinishShoppingButton disabled={totalLines === 0} />
           </div>
         </>
