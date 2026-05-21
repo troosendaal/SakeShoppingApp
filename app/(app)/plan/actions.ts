@@ -11,6 +11,41 @@ type ActionResult<T = unknown> =
 
 const ALLOWED_SLOTS: MealSlot[] = ["breakfast", "lunch", "dinner", "snack"];
 
+// Recompute a recipe's row on the user's active shopping list from the
+// total servings across all of their meal_plan_entries for that recipe.
+// If the recipe has no remaining entries, delete the row from the list.
+// RLS scopes meal_plan_entries to the current user via the meal_plans FK,
+// so a plain SELECT is safe.
+async function syncRecipeToShoppingList(recipeId: string) {
+  const supabase = await createClient();
+  const list = await getOrCreateActiveList();
+
+  const { data: entries } = await supabase
+    .from("meal_plan_entries")
+    .select("servings")
+    .eq("recipe_id", recipeId);
+
+  const totalServings = (entries ?? []).reduce(
+    (sum, e) => sum + (Number(e.servings) || 0),
+    0,
+  );
+
+  if (totalServings > 0) {
+    await supabase
+      .from("list_recipes")
+      .upsert(
+        { list_id: list.id, recipe_id: recipeId, servings: totalServings },
+        { onConflict: "list_id,recipe_id" },
+      );
+  } else {
+    await supabase
+      .from("list_recipes")
+      .delete()
+      .eq("list_id", list.id)
+      .eq("recipe_id", recipeId);
+  }
+}
+
 export async function addMealPlanEntry(input: {
   weekStart: string;
   date: string;
@@ -56,7 +91,11 @@ export async function addMealPlanEntry(input: {
 
   if (error || !data) return { ok: false, error: error?.message ?? "Insert failed" };
 
+  // Mirror the change onto the active shopping list.
+  await syncRecipeToShoppingList(recipeId);
+
   revalidatePath("/plan");
+  revalidatePath("/list");
   return { ok: true, entryId: data.id };
 }
 
@@ -65,12 +104,28 @@ export async function removeMealPlanEntry(
 ): Promise<ActionResult> {
   if (!entryId) return { ok: false, error: "Missing entry id" };
   const supabase = await createClient();
+
+  // Capture the recipe_id BEFORE the delete so we can resync afterwards.
+  const { data: entry, error: lookupErr } = await supabase
+    .from("meal_plan_entries")
+    .select("recipe_id")
+    .eq("id", entryId)
+    .maybeSingle();
+  if (lookupErr) return { ok: false, error: lookupErr.message };
+  if (!entry) return { ok: false, error: "Meal entry not found" };
+
   const { error } = await supabase
     .from("meal_plan_entries")
     .delete()
     .eq("id", entryId);
   if (error) return { ok: false, error: error.message };
+
+  // Recompute the shopping list contribution. If no entries remain for this
+  // recipe, syncRecipeToShoppingList drops the row from list_recipes.
+  await syncRecipeToShoppingList(entry.recipe_id as string);
+
   revalidatePath("/plan");
+  revalidatePath("/list");
   return { ok: true };
 }
 
