@@ -126,6 +126,43 @@ export async function addMealPlanEntry(input: {
   return { ok: true, entryId: data.id };
 }
 
+// Update a scheduled meal's servings. Re-syncs the shopping list because the
+// new servings change how much the recipe contributes to list quantities.
+export async function updateMealPlanEntryServings(
+  entryId: string,
+  servings: number,
+): Promise<ActionResult> {
+  if (!entryId) return { ok: false, error: "Missing entry id" };
+  if (!Number.isFinite(servings) || servings <= 0)
+    return { ok: false, error: "Servings must be positive" };
+
+  const supabase = await createClient();
+
+  // Fetch recipe_id first so we can resync the shopping list afterwards.
+  const { data: entry, error: lookupErr } = await supabase
+    .from("meal_plan_entries")
+    .select("recipe_id")
+    .eq("id", entryId)
+    .maybeSingle();
+  if (lookupErr) return { ok: false, error: lookupErr.message };
+  if (!entry) return { ok: false, error: "Meal entry not found" };
+
+  const { error } = await supabase
+    .from("meal_plan_entries")
+    .update({ servings })
+    .eq("id", entryId);
+  if (error) {
+    console.error("[update servings] failed:", error);
+    return { ok: false, error: error.message };
+  }
+
+  await syncRecipeToShoppingList(entry.recipe_id as string);
+
+  revalidatePath("/plan");
+  revalidatePath("/list");
+  return { ok: true };
+}
+
 export async function removeMealPlanEntry(
   entryId: string,
 ): Promise<ActionResult> {

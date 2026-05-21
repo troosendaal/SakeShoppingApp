@@ -19,7 +19,7 @@ import { useMemo, useState, useTransition } from "react";
 import type { MealSlot, PlanEntry } from "@/lib/db/meal-plan";
 import type { RecipePickerOption } from "@/components/recipe-picker";
 import { AddMealButton } from "./add-meal";
-import { RemoveEntryButton } from "./remove-entry";
+import { MealSlotEntry } from "./meal-slot-entry";
 import { addMealPlanEntry } from "./actions";
 
 type DayData = {
@@ -207,22 +207,7 @@ function DroppableDay({
       </div>
       <div className="day-body">
         {day.entries.map((e) => (
-          <div
-            key={e.id}
-            className="meal-slot"
-            data-cat={SLOT_CAT[e.mealSlot]}
-            style={{ cursor: "default", position: "relative" }}
-          >
-            <div className="slot-type">{e.mealSlot}</div>
-            <div className="slot-title">
-              <span className="slot-emoji">{e.recipe.hero_emoji}</span>{" "}
-              {e.recipe.title}
-            </div>
-            <div className="slot-servings">
-              {e.servings} serving{e.servings === 1 ? "" : "s"}
-            </div>
-            <RemoveEntryButton entryId={e.id} />
-          </div>
+          <MealSlotEntry key={e.id} entry={e} />
         ))}
         <AddMealButton
           weekStart={weekStart}
