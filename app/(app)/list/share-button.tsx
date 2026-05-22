@@ -33,15 +33,22 @@ export function ShareButton({
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset transient state every time the modal opens
+  // Sync the members list with the latest server data on every render —
+  // doesn't touch the modal's transient state (invite URL, etc).
+  useEffect(() => {
+    setMembers(initialMembers);
+  }, [initialMembers]);
+
+  // Reset transient state ONLY when the modal opens, not when other props
+  // change while it's open (otherwise the freshly-generated invite link
+  // disappears the moment the action's revalidation re-renders the page).
   useEffect(() => {
     if (open) {
-      setMembers(initialMembers);
       setInviteUrl(null);
       setCopied(false);
       setError(null);
     }
-  }, [open, initialMembers]);
+  }, [open]);
 
   function generate() {
     setError(null);

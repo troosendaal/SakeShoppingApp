@@ -42,7 +42,9 @@ export async function createInviteLink(
   });
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath("/list");
+  // Don't revalidate /list here — the new invite isn't rendered on that page,
+  // and revalidation triggers a re-render that resets the modal's transient
+  // state (the URL we just showed disappears before the user can copy it).
   return { ok: true, token, expiresAt };
 }
 
