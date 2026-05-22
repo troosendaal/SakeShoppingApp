@@ -47,15 +47,57 @@ export async function getOrCreateActiveList(): Promise<{ id: string }> {
   return { id: created.id as string };
 }
 
+// Lightweight summary used by the shared-list views.
+export async function getListSummary(
+  listId: string,
+): Promise<
+  | { id: string; title: string; status: "active" | "completed" | "archived"; ownerId: string }
+  | null
+> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("shopping_lists")
+    .select("id, title, status, owner_id")
+    .eq("id", listId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    id: data.id as string,
+    title: (data.title as string) ?? "Shopping list",
+    status: data.status as "active" | "completed" | "archived",
+    ownerId: data.owner_id as string,
+  };
+}
+
+// Same grouped-list output as getActiveListGrouped but for a specific list
+// id (used by /shared/[id]). RLS does the access check — if the caller
+// isn't owner-or-member, the queries return empty and we return an empty
+// GroupedList.
+export async function getListGroupedById(
+  locale: Locale,
+  listId: string,
+): Promise<GroupedList> {
+  return fetchAndGroupList(locale, listId);
+}
+
 // Fetch everything needed to render the list, grouped and summed.
 export async function getActiveListGrouped(locale: Locale): Promise<GroupedList> {
+  const list = await getOrCreateActiveList();
+  return fetchAndGroupList(locale, list.id);
+}
+
+async function fetchAndGroupList(
+  locale: Locale,
+  listId: string,
+): Promise<GroupedList> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
-  const list = await getOrCreateActiveList();
+  const list = { id: listId };
 
   // ---- raw queries (parallel) ----
   const [

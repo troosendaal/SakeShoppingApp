@@ -1,7 +1,11 @@
 import { CheckCircle2 } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import { ConfigureBanner, isSupabaseConfigured } from "@/components/configure-banner";
-import { getActiveListGrouped } from "@/lib/db/shopping-list";
+import {
+  getActiveListGrouped,
+  getOrCreateActiveList,
+} from "@/lib/db/shopping-list";
+import { getListMembers } from "@/lib/db/sharing";
 import { listIngredients } from "@/lib/db/recipes";
 import type { Locale } from "@/lib/db/recipe-types";
 import { formatQuantity } from "@/lib/units";
@@ -10,6 +14,7 @@ import { ListLine, RecentItem } from "./list-line";
 import { QuickAdd } from "./quick-add";
 import { FinishShoppingButton } from "./finish-button";
 import { ResyncButton } from "./resync-button";
+import { ShareButton } from "./share-button";
 
 export default async function ListPage() {
   const t = await getTranslations();
@@ -26,11 +31,16 @@ export default async function ListPage() {
 
   let data: Awaited<ReturnType<typeof getActiveListGrouped>> | null = null;
   let ingredients: Awaited<ReturnType<typeof listIngredients>> = [];
+  let activeListId: string | null = null;
+  let members: Awaited<ReturnType<typeof getListMembers>> = [];
   let loadError: string | null = null;
   try {
-    [data, ingredients] = await Promise.all([
+    const active = await getOrCreateActiveList();
+    activeListId = active.id;
+    [data, ingredients, members] = await Promise.all([
       getActiveListGrouped(locale),
       listIngredients(),
+      getListMembers(active.id),
     ]);
   } catch (err) {
     console.error("[list] load failed:", err);
@@ -161,7 +171,19 @@ export default async function ListPage() {
               flexWrap: "wrap",
             }}
           >
-            <ResyncButton />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {activeListId && (
+                <ShareButton
+                  listId={activeListId}
+                  initialMembers={members.map((m) => ({
+                    userId: m.userId,
+                    displayName: m.displayName,
+                    role: m.role,
+                  }))}
+                />
+              )}
+              <ResyncButton />
+            </div>
             <FinishShoppingButton disabled={totalLines === 0} />
           </div>
         </>
