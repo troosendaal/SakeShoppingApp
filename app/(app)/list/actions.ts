@@ -223,6 +223,46 @@ export async function addAdhocItem(
   return { ok: true };
 }
 
+// Bulk-add multiple ad-hoc items in one round-trip. Each input is a
+// pre-matched (ingredient_id, quantity, unit) tuple — the client does the
+// parsing + matching, so this server action just validates and inserts.
+export async function addBulkAdhocItems(
+  items: Array<{ ingredient_id: string; quantity: number; unit: string }>,
+): Promise<
+  | { ok: true; addedCount: number }
+  | { ok: false; error: string }
+> {
+  if (!Array.isArray(items) || items.length === 0)
+    return { ok: false, error: "Nothing to add" };
+
+  // Validate each row up front so a single bad item doesn't half-fail.
+  for (const it of items) {
+    if (!it.ingredient_id)
+      return { ok: false, error: "Each item needs an ingredient" };
+    if (!Number.isFinite(it.quantity) || it.quantity <= 0)
+      return { ok: false, error: "Each item needs a positive quantity" };
+    if (!it.unit) return { ok: false, error: "Each item needs a unit" };
+  }
+
+  const supabase = await createClient();
+  const userId = await getUserId();
+  const list = await getOrCreateActiveList();
+
+  const rows = items.map((it) => ({
+    list_id: list.id,
+    ingredient_id: it.ingredient_id,
+    quantity: it.quantity,
+    unit: it.unit,
+    added_by: userId,
+  }));
+
+  const { error } = await supabase.from("list_adhoc_items").insert(rows);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/list");
+  return { ok: true, addedCount: rows.length };
+}
+
 // --------------------------------------------------------------------------
 // Duplicate a past (completed/archived) list into a new active one.
 // Clones list_recipes and list_adhoc_items but resets line state — checks,

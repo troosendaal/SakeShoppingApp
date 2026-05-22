@@ -1,10 +1,17 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import type { IngredientLite, Locale } from "@/lib/db/recipe-types";
 import { ingredientName, UNITS } from "@/lib/db/recipe-types";
-import { addAdhocItem } from "./actions";
+import {
+  matchIngredient,
+  parseBulkIngredients,
+} from "@/lib/parse-ingredients";
+import { addAdhocItem, addBulkAdhocItems } from "./actions";
+
+type Mode = "single" | "bulk";
 
 // Pick a sensible default unit for an ingredient's canonical unit type.
 const DEFAULT_UNIT: Record<IngredientLite["canonical_unit_type"], string> = {
@@ -26,6 +33,56 @@ export function QuickAdd({
   bulkLabel: string;
   addLabel: string;
 }) {
+  const [mode, setMode] = useState<Mode>("single");
+
+  return (
+    <div className="quick-add">
+      <div
+        className="qa-mode-toggle"
+        style={{ marginBottom: 10, display: "inline-flex" }}
+      >
+        <button
+          type="button"
+          className={mode === "single" ? "active" : ""}
+          onClick={() => setMode("single")}
+        >
+          {singleLabel}
+        </button>
+        <button
+          type="button"
+          className={mode === "bulk" ? "active" : ""}
+          onClick={() => setMode("bulk")}
+        >
+          {bulkLabel}
+        </button>
+      </div>
+      {mode === "single" ? (
+        <SingleAdd
+          ingredients={ingredients}
+          locale={locale}
+          addLabel={addLabel}
+        />
+      ) : (
+        <BulkAdd
+          ingredients={ingredients}
+          locale={locale}
+          addLabel={addLabel}
+        />
+      )}
+    </div>
+  );
+}
+
+function SingleAdd({
+  ingredients,
+  locale,
+  addLabel,
+}: {
+  ingredients: IngredientLite[];
+  locale: Locale;
+  addLabel: string;
+}) {
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -37,11 +94,11 @@ export function QuickAdd({
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return ingredients.slice(0, 8);
-    const filtered = ingredients.filter((i) => {
-      const haystack = `${i.name_en} ${i.name_nl} ${i.name_fr}`.toLowerCase();
-      return haystack.includes(q);
-    });
-    return filtered.slice(0, 8);
+    return ingredients
+      .filter((i) =>
+        `${i.name_en} ${i.name_nl} ${i.name_fr}`.toLowerCase().includes(q),
+      )
+      .slice(0, 8);
   }, [query, ingredients]);
 
   function pick(ing: IngredientLite) {
@@ -74,12 +131,15 @@ export function QuickAdd({
     startTransition(async () => {
       const r = await addAdhocItem(selectedId, q, unit);
       if (!r.ok) setError(r.error);
-      else reset();
+      else {
+        reset();
+        router.refresh();
+      }
     });
   }
 
   return (
-    <div className="quick-add">
+    <>
       <form onSubmit={onSubmit} className="quick-add-row">
         <div style={{ position: "relative", flex: 1, minWidth: 200 }}>
           <input
@@ -137,7 +197,13 @@ export function QuickAdd({
                 >
                   <span style={{ fontSize: 18 }}>{ing.emoji}</span>
                   <span style={{ flex: 1 }}>{ingredientName(ing, locale)}</span>
-                  <span style={{ fontSize: 11, color: "var(--ink-soft)", fontStyle: "italic" }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: "var(--ink-soft)",
+                      fontStyle: "italic",
+                    }}
+                  >
                     {ing.canonical_unit_type}
                   </span>
                 </button>
@@ -174,14 +240,6 @@ export function QuickAdd({
             </option>
           ))}
         </select>
-        <div className="qa-mode-toggle">
-          <button type="button" className="active">
-            {singleLabel}
-          </button>
-          <button type="button" title="Bulk paste — coming in the next commit">
-            {bulkLabel}
-          </button>
-        </div>
         <button type="submit" className="btn btn-primary" disabled={pending}>
           <Plus /> {pending ? "Adding…" : addLabel}
         </button>
@@ -191,6 +249,146 @@ export function QuickAdd({
           {error}
         </div>
       )}
+    </>
+  );
+}
+
+// Bulk paste: textarea → parser → matcher → server insert. Shows a live
+// preview of matched / unmatched items as the user types.
+function BulkAdd({
+  ingredients,
+  locale,
+  addLabel: _addLabel,
+}: {
+  ingredients: IngredientLite[];
+  locale: Locale;
+  addLabel: string;
+}) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [text, setText] = useState("");
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const parsedItems = useMemo(() => {
+    return parseBulkIngredients(text).map((p) => {
+      const ing = matchIngredient(p.name, ingredients);
+      const fallback = ing
+        ? DEFAULT_UNIT[ing.canonical_unit_type]
+        : "whole";
+      return {
+        parsed: p,
+        ingredient: ing,
+        unit: p.unit ?? fallback,
+      };
+    });
+  }, [text, ingredients]);
+
+  const matched = parsedItems.filter((p) => p.ingredient);
+  const unmatched = parsedItems.filter((p) => !p.ingredient);
+
+  function submit() {
+    setError(null);
+    setFeedback(null);
+    if (matched.length === 0) {
+      setError("Nothing to add — none of those names match an ingredient.");
+      return;
+    }
+    const rows = matched.map((m) => ({
+      ingredient_id: m.ingredient!.id,
+      quantity: m.parsed.quantity,
+      unit: m.unit,
+    }));
+    startTransition(async () => {
+      const r = await addBulkAdhocItems(rows);
+      if (!r.ok) {
+        setError(r.error);
+      } else {
+        const msg = unmatched.length
+          ? `Added ${r.addedCount}. ${unmatched.length} couldn't be matched and were skipped.`
+          : `Added ${r.addedCount} item${r.addedCount === 1 ? "" : "s"}.`;
+        setFeedback(msg);
+        setText("");
+        router.refresh();
+        setTimeout(() => setFeedback(null), 3000);
+      }
+    });
+  }
+
+  return (
+    <div>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={
+          "2 avocados\n6 eggs, toilet paper\n200 g flour, 1 lemon"
+        }
+        rows={5}
+        style={{
+          width: "100%",
+          border: "1px solid var(--line)",
+          background: "var(--bg-paper)",
+          borderRadius: 10,
+          padding: "10px 14px",
+          fontFamily: "inherit",
+          fontSize: 14,
+          outline: "none",
+          resize: "vertical",
+          lineHeight: 1.5,
+        }}
+      />
+
+      {(matched.length > 0 || unmatched.length > 0) && (
+        <div style={{ marginTop: 10, fontSize: 12, color: "var(--ink-soft)" }}>
+          {matched.length > 0 && (
+            <div>
+              <strong style={{ color: "var(--olive)" }}>✓ {matched.length} matched:</strong>{" "}
+              {matched
+                .map(
+                  (m) =>
+                    `${m.parsed.quantity} ${m.unit} ${ingredientName(m.ingredient!, locale)}`,
+                )
+                .join(", ")}
+            </div>
+          )}
+          {unmatched.length > 0 && (
+            <div style={{ marginTop: 4 }}>
+              <strong style={{ color: "var(--terracotta)" }}>
+                ✗ {unmatched.length} no match:
+              </strong>{" "}
+              {unmatched.map((u) => u.parsed.raw).join(", ")}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div
+        style={{
+          marginTop: 10,
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          gap: 10,
+        }}
+      >
+        {feedback && (
+          <span style={{ color: "var(--olive)", fontSize: 12 }}>{feedback}</span>
+        )}
+        {error && (
+          <span style={{ color: "var(--terracotta)", fontSize: 12 }}>{error}</span>
+        )}
+        <button
+          type="button"
+          onClick={submit}
+          disabled={pending || matched.length === 0}
+          className="btn btn-primary"
+        >
+          <Plus />{" "}
+          {pending
+            ? "Adding…"
+            : `Add ${matched.length} item${matched.length === 1 ? "" : "s"}`}
+        </button>
+      </div>
     </div>
   );
 }
