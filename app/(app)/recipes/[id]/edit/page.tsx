@@ -4,6 +4,7 @@ import { ChevronLeft } from "lucide-react";
 import { getLocale } from "next-intl/server";
 import { isSupabaseConfigured } from "@/components/configure-banner";
 import { getRecipeWithIngredients, listIngredients } from "@/lib/db/recipes";
+import { listCategories } from "@/lib/db/categories";
 import type { Locale } from "@/lib/db/recipe-types";
 import { errorMessage } from "@/lib/errors";
 import { RecipeForm, type RecipeFormInitial } from "../../new/recipe-form";
@@ -30,15 +31,18 @@ export default async function EditRecipePage({
 
   let initial: RecipeFormInitial | null = null;
   let ingredients: Awaited<ReturnType<typeof listIngredients>> = [];
+  let categories: Awaited<ReturnType<typeof listCategories>> = [];
   let loadError: string | null = null;
 
   try {
-    const [recipe, allIngs] = await Promise.all([
+    const [recipe, allIngs, allCats] = await Promise.all([
       getRecipeWithIngredients(id),
       listIngredients(),
+      listCategories(),
     ]);
     if (!recipe) notFound();
     ingredients = allIngs;
+    categories = allCats;
     initial = {
       recipeId: recipe.id,
       title: recipe.title,
@@ -107,7 +111,12 @@ export default async function EditRecipePage({
       )}
 
       {initial && (
-        <RecipeForm ingredients={ingredients} locale={locale} initial={initial} />
+        <RecipeForm
+          ingredients={ingredients}
+          categories={categories}
+          locale={locale}
+          initial={initial}
+        />
       )}
     </>
   );

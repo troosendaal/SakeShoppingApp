@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import type { IngredientLite, Locale } from "@/lib/db/recipe-types";
 import { ingredientName, UNITS } from "@/lib/db/recipe-types";
+import type { CategoryOption } from "@/lib/db/categories";
+import { CreateIngredientModal } from "@/components/create-ingredient-modal";
 import {
   matchIngredient,
   parseBulkIngredients,
@@ -22,12 +24,14 @@ const DEFAULT_UNIT: Record<IngredientLite["canonical_unit_type"], string> = {
 
 export function QuickAdd({
   ingredients,
+  categories,
   locale,
   singleLabel,
   bulkLabel,
   addLabel,
 }: {
   ingredients: IngredientLite[];
+  categories: CategoryOption[];
   locale: Locale;
   singleLabel: string;
   bulkLabel: string;
@@ -59,6 +63,7 @@ export function QuickAdd({
       {mode === "single" ? (
         <SingleAdd
           ingredients={ingredients}
+          categories={categories}
           locale={locale}
           addLabel={addLabel}
         />
@@ -75,10 +80,12 @@ export function QuickAdd({
 
 function SingleAdd({
   ingredients,
+  categories,
   locale,
   addLabel,
 }: {
   ingredients: IngredientLite[];
+  categories: CategoryOption[];
   locale: Locale;
   addLabel: string;
 }) {
@@ -90,6 +97,7 @@ function SingleAdd({
   const [unit, setUnit] = useState("whole");
   const [error, setError] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -154,7 +162,7 @@ function SingleAdd({
             placeholder="Add an item…"
             style={{ width: "100%" }}
           />
-          {showDropdown && matches.length > 0 && (
+          {showDropdown && (
             <div
               style={{
                 position: "absolute",
@@ -208,6 +216,48 @@ function SingleAdd({
                   </span>
                 </button>
               ))}
+              {matches.length === 0 && (
+                <div
+                  style={{
+                    padding: "10px 12px",
+                    fontSize: 12,
+                    color: "var(--ink-soft)",
+                    fontStyle: "italic",
+                  }}
+                >
+                  {query
+                    ? `No ingredients match "${query}".`
+                    : "No ingredients yet."}
+                </div>
+              )}
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setShowDropdown(false);
+                  setCreateOpen(true);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                  padding: "10px 12px",
+                  border: "none",
+                  borderTop: "1px solid var(--line)",
+                  background: "var(--bg-paper)",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  textAlign: "left",
+                  color: "var(--terracotta)",
+                  fontWeight: 500,
+                }}
+              >
+                <Plus size={14} />{" "}
+                {query
+                  ? `Create "${query}" as a new ingredient`
+                  : "Create new ingredient"}
+              </button>
             </div>
           )}
         </div>
@@ -249,6 +299,19 @@ function SingleAdd({
           {error}
         </div>
       )}
+      <CreateIngredientModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(ing) => {
+          // Auto-select the freshly-created ingredient so the user can
+          // just hit "Add" without searching again.
+          pick(ing);
+          router.refresh();
+        }}
+        categories={categories}
+        locale={locale}
+        initialName={query}
+      />
     </>
   );
 }

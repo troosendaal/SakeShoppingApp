@@ -11,6 +11,7 @@ import {
 } from "@/lib/db/recipe-types";
 import { unitTypeOf } from "@/lib/units";
 import { IngredientPicker } from "@/components/ingredient-picker";
+import type { CategoryOption } from "@/lib/db/categories";
 import { createRecipe, updateRecipe } from "../actions";
 import { BulkIngredientInput } from "./bulk-ingredient-input";
 
@@ -62,10 +63,12 @@ const CATEGORY_EMOJI: Record<string, string> = {
 
 export function RecipeForm({
   ingredients,
+  categories,
   locale,
   initial,
 }: {
   ingredients: IngredientLite[];
+  categories?: CategoryOption[];
   locale: Locale;
   initial?: RecipeFormInitial;
 }) {
@@ -337,6 +340,7 @@ export function RecipeForm({
             >
               <IngredientPicker
                 ingredients={ingredients}
+                categories={categories}
                 locale={locale}
                 value={row.ingredient_id}
                 onChange={(id) => onIngredientChange(i, id)}

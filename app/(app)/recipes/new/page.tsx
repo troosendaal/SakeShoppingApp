@@ -3,6 +3,7 @@ import { ChevronLeft } from "lucide-react";
 import { getLocale } from "next-intl/server";
 import { isSupabaseConfigured } from "@/components/configure-banner";
 import { listIngredients } from "@/lib/db/recipes";
+import { listCategories } from "@/lib/db/categories";
 import type { Locale } from "@/lib/db/recipe-types";
 import { errorMessage } from "@/lib/errors";
 import { RecipeForm } from "./recipe-form";
@@ -24,11 +25,15 @@ export default async function NewRecipePage() {
   const locale = ((await getLocale()) as Locale) ?? "en";
 
   let ingredients: Awaited<ReturnType<typeof listIngredients>> = [];
+  let categories: Awaited<ReturnType<typeof listCategories>> = [];
   let loadError: string | null = null;
   try {
-    ingredients = await listIngredients();
+    [ingredients, categories] = await Promise.all([
+      listIngredients(),
+      listCategories(),
+    ]);
   } catch (err) {
-    console.error("[recipes/new] listIngredients failed:", err);
+    console.error("[recipes/new] load failed:", err);
     loadError = errorMessage(err);
   }
 
@@ -75,7 +80,11 @@ export default async function NewRecipePage() {
         </div>
       )}
 
-      <RecipeForm ingredients={ingredients} locale={locale} />
+      <RecipeForm
+        ingredients={ingredients}
+        categories={categories}
+        locale={locale}
+      />
     </>
   );
 }

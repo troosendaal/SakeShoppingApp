@@ -1,12 +1,14 @@
 "use client";
 
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   type IngredientLite,
   type Locale,
   ingredientName,
 } from "@/lib/db/recipe-types";
+import type { CategoryOption } from "@/lib/db/categories";
+import { CreateIngredientModal } from "./create-ingredient-modal";
 
 // Reusable searchable ingredient combobox. Filters by EN/NL/FR name + emoji.
 // Used in the recipe form and (eventually) anywhere else we need a picker.
@@ -17,6 +19,7 @@ export function IngredientPicker({
   onChange,
   placeholder = "Search ingredients…",
   required = false,
+  categories,
 }: {
   ingredients: IngredientLite[];
   locale: Locale;
@@ -24,7 +27,11 @@ export function IngredientPicker({
   onChange: (ingredientId: string, ingredient: IngredientLite | null) => void;
   placeholder?: string;
   required?: boolean;
+  // If categories are supplied, the dropdown gets a "+ Create new
+  // ingredient" footer that opens an inline create modal.
+  categories?: CategoryOption[];
 }) {
+  const [createOpen, setCreateOpen] = useState(false);
   const selected = useMemo(
     () => ingredients.find((i) => i.id === value) ?? null,
     [ingredients, value],
@@ -147,7 +154,7 @@ export function IngredientPicker({
         )}
       </div>
 
-      {open && matches.length > 0 && (
+      {open && (matches.length > 0 || categories) && (
         <div
           style={{
             position: "absolute",
@@ -207,30 +214,67 @@ export function IngredientPicker({
               </button>
             );
           })}
+          {matches.length === 0 && (
+            <div
+              style={{
+                padding: "10px 12px",
+                fontSize: 12,
+                color: "var(--ink-soft)",
+                fontStyle: "italic",
+              }}
+            >
+              {query
+                ? `No ingredients match "${query}".`
+                : "No ingredients yet."}
+            </div>
+          )}
+          {categories && categories.length > 0 && (
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setOpen(false);
+                setCreateOpen(true);
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                width: "100%",
+                padding: "10px 12px",
+                border: "none",
+                borderTop: "1px solid var(--line)",
+                background: "var(--bg-paper)",
+                cursor: "pointer",
+                fontSize: 13,
+                textAlign: "left",
+                color: "var(--terracotta)",
+                fontWeight: 500,
+              }}
+            >
+              <Plus size={14} />{" "}
+              {query
+                ? `Create "${query}" as a new ingredient`
+                : "Create new ingredient"}
+            </button>
+          )}
         </div>
       )}
 
-      {open && matches.length === 0 && (
-        <div
-          style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            left: 0,
-            right: 0,
-            background: "var(--bg-card)",
-            border: "1px solid var(--line)",
-            borderRadius: 10,
-            boxShadow: "var(--shadow)",
-            padding: "12px 14px",
-            fontSize: 13,
-            color: "var(--ink-soft)",
-            fontStyle: "italic",
-            zIndex: 30,
+      {categories && (
+        <CreateIngredientModal
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          onCreated={(ing) => {
+            // Auto-select the freshly-created ingredient in the parent form
+            // so the user doesn't have to search for it again.
+            onChange(ing.id, ing);
+            setQuery("");
           }}
-        >
-          No ingredients match "{query}". Use Bulk paste, or add one
-          inline (coming soon).
-        </div>
+          categories={categories}
+          locale={locale}
+          initialName={query}
+        />
       )}
     </div>
   );

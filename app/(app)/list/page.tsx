@@ -7,6 +7,7 @@ import {
 } from "@/lib/db/shopping-list";
 import { getListMembers } from "@/lib/db/sharing";
 import { listIngredients } from "@/lib/db/recipes";
+import { listCategories } from "@/lib/db/categories";
 import type { Locale } from "@/lib/db/recipe-types";
 import { formatQuantity } from "@/lib/units";
 import { errorMessage } from "@/lib/errors";
@@ -31,15 +32,17 @@ export default async function ListPage() {
 
   let data: Awaited<ReturnType<typeof getActiveListGrouped>> | null = null;
   let ingredients: Awaited<ReturnType<typeof listIngredients>> = [];
+  let categories: Awaited<ReturnType<typeof listCategories>> = [];
   let activeListId: string | null = null;
   let members: Awaited<ReturnType<typeof getListMembers>> = [];
   let loadError: string | null = null;
   try {
     const active = await getOrCreateActiveList();
     activeListId = active.id;
-    [data, ingredients, members] = await Promise.all([
+    [data, ingredients, categories, members] = await Promise.all([
       getActiveListGrouped(locale),
       listIngredients(),
+      listCategories(),
       getListMembers(active.id),
     ]);
   } catch (err) {
@@ -73,6 +76,7 @@ export default async function ListPage() {
 
       <QuickAdd
         ingredients={ingredients}
+        categories={categories}
         locale={locale}
         singleLabel={t("common.single")}
         bulkLabel={t("common.bulkPaste")}
