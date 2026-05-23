@@ -163,30 +163,34 @@ export function CreateIngredientModal({
             search and merging working.
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "80px 1fr", gap: 10 }}>
-            <Field label="Emoji">
-              <input
-                value={emoji}
-                onChange={(e) => setEmoji(e.target.value)}
-                maxLength={4}
-                required
-                style={{ ...inputStyle, fontSize: 24, textAlign: "center" }}
-              />
-            </Field>
-            <Field label="Category">
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                required
-                style={inputStyle}
-              >
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.emoji} {categoryLabel(c)}
-                  </option>
-                ))}
-              </select>
-            </Field>
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+            <div style={{ flex: "0 0 96px" }}>
+              <Field label="Emoji">
+                <input
+                  value={emoji}
+                  onChange={(e) => setEmoji(e.target.value)}
+                  maxLength={4}
+                  required
+                  style={{ ...inputStyle, fontSize: 22, textAlign: "center" }}
+                />
+              </Field>
+            </div>
+            <div style={{ flex: "1 1 0", minWidth: 0 }}>
+              <Field label="Category">
+                <select
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  required
+                  style={inputStyle}
+                >
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.emoji} {categoryLabel(c)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
           </div>
 
           <Field label="Name (EN)">
@@ -243,29 +247,33 @@ export function CreateIngredientModal({
             />
           </Field>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <Field label="Kind">
-              <select
-                value={itemKind}
-                onChange={(e) => setItemKind(e.target.value as ItemKind)}
-                style={inputStyle}
-              >
-                <option value="food">Food</option>
-                <option value="household">Household</option>
-              </select>
-            </Field>
-            <Field label="Unit type">
-              <select
-                value={unitType}
-                onChange={(e) => setUnitType(e.target.value as UnitType)}
-                required
-                style={inputStyle}
-              >
-                <option value="count">Count (whole, can, pack…)</option>
-                <option value="mass">Mass (g, kg, oz, lb)</option>
-                <option value="volume">Volume (ml, l, cup, tbsp)</option>
-              </select>
-            </Field>
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ flex: "1 1 0", minWidth: 0 }}>
+              <Field label="Kind">
+                <select
+                  value={itemKind}
+                  onChange={(e) => setItemKind(e.target.value as ItemKind)}
+                  style={inputStyle}
+                >
+                  <option value="food">Food</option>
+                  <option value="household">Household</option>
+                </select>
+              </Field>
+            </div>
+            <div style={{ flex: "1 1 0", minWidth: 0 }}>
+              <Field label="Unit type">
+                <select
+                  value={unitType}
+                  onChange={(e) => setUnitType(e.target.value as UnitType)}
+                  required
+                  style={inputStyle}
+                >
+                  <option value="count">Count (whole, can, pack…)</option>
+                  <option value="mass">Mass (g, kg, oz, lb)</option>
+                  <option value="volume">Volume (ml, l, cup, tbsp)</option>
+                </select>
+              </Field>
+            </div>
           </div>
 
           {error && (
