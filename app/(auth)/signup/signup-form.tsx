@@ -7,7 +7,15 @@ import { createClient } from "@/lib/supabase/client";
 
 type Mode = "password" | "magic";
 
-export function SignupForm() {
+function buildCallbackUrl(next: string): string {
+  const url = new URL("/auth/callback", window.location.origin);
+  if (next && next !== "/recipes") {
+    url.searchParams.set("next", next);
+  }
+  return url.toString();
+}
+
+export function SignupForm({ next = "/recipes" }: { next?: string }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("password");
   const [email, setEmail] = useState("");
@@ -34,7 +42,7 @@ export function SignupForm() {
         const { error: err } = await supabase.auth.signInWithOtp({
           email,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            emailRedirectTo: buildCallbackUrl(next),
             data: userMetadata,
           },
         });
@@ -45,7 +53,7 @@ export function SignupForm() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            emailRedirectTo: buildCallbackUrl(next),
             data: userMetadata,
           },
         });
@@ -54,7 +62,10 @@ export function SignupForm() {
         // session — they need to click the confirm link. If it's disabled
         // (Supabase Auth settings), we get a session right away.
         if (data.session) {
-          router.push("/recipes");
+          // Set locale cookie to match what was just stored in profiles, so
+          // the UI doesn't load with a stale previous-user locale.
+          document.cookie = `sake_locale=${language}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
+          router.push(next);
           router.refresh();
         } else {
           setStatus("sent");

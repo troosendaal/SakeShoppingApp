@@ -50,11 +50,17 @@ export async function middleware(req: NextRequest) {
       url.pathname.startsWith("/auth");
 
     if (!user && !isAuthPage) {
-      url.pathname = "/login";
-      return NextResponse.redirect(url);
+      // Preserve the original destination so we can return the user there
+      // after sign-in instead of dumping everyone on /recipes.
+      const originalPath = url.pathname + url.search;
+      const loginUrl = req.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      loginUrl.search = `?next=${encodeURIComponent(originalPath)}`;
+      return NextResponse.redirect(loginUrl);
     }
     if (user && isAuthPage) {
       url.pathname = "/recipes";
+      url.search = "";
       return NextResponse.redirect(url);
     }
 

@@ -7,7 +7,15 @@ import { createClient } from "@/lib/supabase/client";
 
 type Mode = "password" | "magic";
 
-export function LoginForm() {
+function buildCallbackUrl(next: string): string {
+  const url = new URL("/auth/callback", window.location.origin);
+  if (next && next !== "/recipes") {
+    url.searchParams.set("next", next);
+  }
+  return url.toString();
+}
+
+export function LoginForm({ next = "/recipes" }: { next?: string }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("password");
   const [email, setEmail] = useState("");
@@ -26,7 +34,7 @@ export function LoginForm() {
       if (mode === "magic") {
         const { error: err } = await supabase.auth.signInWithOtp({
           email,
-          options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+          options: { emailRedirectTo: buildCallbackUrl(next) },
         });
         if (err) throw err;
         setStatus("sent");
@@ -36,7 +44,7 @@ export function LoginForm() {
           password,
         });
         if (err) throw err;
-        router.push("/recipes");
+        router.push(next);
         router.refresh();
       }
     } catch (err) {

@@ -1,8 +1,16 @@
 import Link from "next/link";
 import { Flame } from "lucide-react";
+import { safeNextPath } from "@/lib/auth-redirect";
 import { SignupForm } from "./signup-form";
 
-export default function SignupPage() {
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const { next } = await searchParams;
+  const dest = safeNextPath(next);
+
   return (
     <div className="auth-shell">
       <div className="auth-card">
@@ -17,9 +25,12 @@ export default function SignupPage() {
           </div>
         </div>
         <p>Create an account to start building recipes and shopping lists.</p>
-        <SignupForm />
+        <SignupForm next={dest} />
         <div className="switch">
-          Already have an account? <Link href="/login">Sign in</Link>
+          Already have an account?{" "}
+          <Link href={`/login${dest !== "/recipes" ? `?next=${encodeURIComponent(dest)}` : ""}`}>
+            Sign in
+          </Link>
         </div>
       </div>
     </div>
