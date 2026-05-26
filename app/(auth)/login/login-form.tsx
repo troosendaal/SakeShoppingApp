@@ -1,6 +1,7 @@
 "use client";
 
 import { KeyRound, Mail } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -87,6 +88,18 @@ export function LoginForm({ next = "/recipes" }: { next?: string }) {
             placeholder="••••••••"
             autoComplete="current-password"
           />
+          <div style={{ textAlign: "right", marginTop: -8, marginBottom: 12 }}>
+            <Link
+              href="/auth/forgot-password"
+              style={{
+                fontSize: 12,
+                color: "var(--ink-soft)",
+                textDecoration: "none",
+              }}
+            >
+              Forgot password?
+            </Link>
+          </div>
         </>
       )}
       {error && (

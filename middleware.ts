@@ -42,14 +42,22 @@ export async function middleware(req: NextRequest) {
     } = await supabase.auth.getUser();
 
     const url = req.nextUrl.clone();
-    // /auth/* covers the magic-link callback — must pass through regardless of
-    // auth state so the session can be established.
-    const isAuthPage =
+    // /auth/* covers the magic-link callback, forgot- and reset-password
+    // pages — they must pass through regardless of auth state so a session
+    // can be established (callback) or a recovery session can act
+    // (reset-password).
+    const isUnauthFriendly =
       url.pathname.startsWith("/login") ||
       url.pathname.startsWith("/signup") ||
       url.pathname.startsWith("/auth");
+    // Pages that should bounce an already-signed-in user back to the app.
+    // /auth/reset-password is excluded — recovery sessions land there
+    // logged-in but still need to see the new-password form.
+    const isSigninPage =
+      url.pathname.startsWith("/login") ||
+      url.pathname.startsWith("/signup");
 
-    if (!user && !isAuthPage) {
+    if (!user && !isUnauthFriendly) {
       // Preserve the original destination so we can return the user there
       // after sign-in instead of dumping everyone on /recipes.
       const originalPath = url.pathname + url.search;
@@ -58,7 +66,7 @@ export async function middleware(req: NextRequest) {
       loginUrl.search = `?next=${encodeURIComponent(originalPath)}`;
       return NextResponse.redirect(loginUrl);
     }
-    if (user && isAuthPage) {
+    if (user && isSigninPage) {
       url.pathname = "/recipes";
       url.search = "";
       return NextResponse.redirect(url);
