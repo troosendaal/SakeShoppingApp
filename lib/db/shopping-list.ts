@@ -47,6 +47,69 @@ export async function getOrCreateActiveList(): Promise<{ id: string }> {
   return { id: created.id as string };
 }
 
+// Count of distinct unchecked ingredients on the user's active list — the
+// number we surface in the topbar tab badge. Cheap-ish: just three SELECTs,
+// no full sum reducer. If there's no active list yet we don't create one
+// (unlike getOrCreateActiveList — we don't want a side-effect on every
+// page render).
+export async function getActiveListUncheckedCount(): Promise<number> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return 0;
+
+  const { data: existing } = await supabase
+    .from("shopping_lists")
+    .select("id")
+    .eq("owner_id", user.id)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!existing) return 0;
+  const listId = existing.id as string;
+
+  // Pull ingredient_ids from both contribution sources + the checked-off list.
+  const [{ data: recipeRows }, { data: adhocRows }, { data: stateRows }] =
+    await Promise.all([
+      supabase
+        .from("list_recipes")
+        .select("recipe:recipes(recipe_ingredients(ingredient_id))")
+        .eq("list_id", listId),
+      supabase
+        .from("list_adhoc_items")
+        .select("ingredient_id")
+        .eq("list_id", listId),
+      supabase
+        .from("list_line_state")
+        .select("ingredient_id")
+        .eq("list_id", listId)
+        .eq("is_checked", true),
+    ]);
+
+  type RawRI = { ingredient_id: string };
+  type RawRecipe = { recipe_ingredients: RawRI[] | null };
+  type RawRecipeRow = { recipe: RawRecipe | RawRecipe[] | null };
+
+  const ingredientIds = new Set<string>();
+  for (const lr of (recipeRows ?? []) as RawRecipeRow[]) {
+    const r = Array.isArray(lr.recipe) ? lr.recipe[0] : lr.recipe;
+    for (const ri of r?.recipe_ingredients ?? []) {
+      if (ri.ingredient_id) ingredientIds.add(ri.ingredient_id);
+    }
+  }
+  for (const a of adhocRows ?? []) {
+    if (a.ingredient_id) ingredientIds.add(a.ingredient_id as string);
+  }
+
+  for (const s of stateRows ?? []) {
+    if (s.ingredient_id) ingredientIds.delete(s.ingredient_id as string);
+  }
+
+  return ingredientIds.size;
+}
+
 // Lightweight summary used by the shared-list views.
 export async function getListSummary(
   listId: string,
