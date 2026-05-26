@@ -74,15 +74,10 @@ export default async function RecipeDetailPage({
         </Link>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.4fr)",
-          gap: 24,
-        }}
-      >
+      <div className="recipe-detail-grid">
         {/* Hero column */}
         <aside
+          className="recipe-detail-hero"
           style={{
             background:
               CATEGORY_GRADIENT[recipe.meal_category] ?? CATEGORY_GRADIENT.dinner,
@@ -90,9 +85,6 @@ export default async function RecipeDetailPage({
             borderRadius: 20,
             padding: 28,
             boxShadow: "var(--shadow)",
-            position: "sticky",
-            top: 24,
-            alignSelf: "start",
           }}
         >
           <div

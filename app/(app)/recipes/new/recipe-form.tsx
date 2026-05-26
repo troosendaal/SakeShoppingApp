@@ -329,15 +329,7 @@ export function RecipeForm({
       <Card title="Ingredients">
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {rows.map((row, i) => (
-            <div
-              key={i}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 90px 100px auto auto",
-                gap: 8,
-                alignItems: "center",
-              }}
-            >
+            <div key={i} className="recipe-ingredient-row">
               <IngredientPicker
                 ingredients={ingredients}
                 categories={categories}
